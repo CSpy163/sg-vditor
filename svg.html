@@ -8,6 +8,10 @@
             width: 100vw;
             height: 100vh;
         }
+
+        .handler {
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -15,6 +19,8 @@
 <script>
     const mySvg = document.querySelector("#mySvg");
 
+    let drawingObj = null;
+    let editingObj = null;
 
     /**
      * 画图基类
@@ -23,6 +29,14 @@
         id;
         x;
         y;
+        /**
+         * 3种状态：
+         * "": 正常
+         * "moving": 移动状态（整体移动）
+         * "editing": 选中状态（可进行大小调整）
+         */
+        state = "";
+        editHandler = [];
 
 
         /**
@@ -52,6 +66,57 @@
          */
         get obj() {
         }
+
+
+        /**
+         * 进入编辑模式
+         */
+        enableEdit() {
+            this.state = "editing";
+            if (editingObj) {
+                editingObj.disableEdit();
+            }
+            editingObj = this;
+        }
+
+        /**
+         * 取消编辑模式
+         */
+        disableEdit() {
+            this.state = "";
+            editingObj = null;
+        }
+
+
+        /**
+         * 快捷初始化”把手“
+         * @param count
+         * @param x
+         * @param y
+         */
+        initHandlers(count, x, y) {
+            if (count > 0) {
+                for (let i = 0; i < count; i++) {
+                    this.editHandler.push(this.createHandler(x, y))
+                }
+            }
+        }
+
+        /**
+         * 编辑“把手”
+         * @param x
+         * @param y
+         * @returns {SVGCircleElement}
+         */
+        createHandler(x, y) {
+            const handler = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            handler.setAttribute("cx", x);
+            handler.setAttribute("cy", y);
+            handler.setAttribute("stroke", "black");
+            handler.setAttribute("r", "5");
+            handler.classList.add("handler")
+            return handler;
+        }
     }
 
 
@@ -62,6 +127,7 @@
         endX;
         endY;
         lineObj;
+
 
         /**
          * 在构造函数中创建 svg 对象。
@@ -76,13 +142,31 @@
             this.lineObj.setAttribute("x1", this.x);
             this.lineObj.setAttribute("y1", this.y);
             this.lineObj.setAttribute("stroke", "black");
+            this.lineObj.parent = this;
 
-            /**
-             * 添加点击事件
-             */
+            // 初始化两个”把手“
+            this.initHandlers(2, this.x, this.y);
+            // 添加点击事件
             this.lineObj.addEventListener("click", (e) => {
-                console.log(`click: ${this.id}`);
+                this.enableEdit();
             });
+        }
+
+
+        enableEdit() {
+            super.enableEdit();
+            const startHandler = this.editHandler[0];
+            startHandler.setAttribute("cx", this.x);
+            startHandler.setAttribute("cy", this.y);
+            const endHandler = this.editHandler[1];
+            endHandler.setAttribute("cx", this.endX);
+            endHandler.setAttribute("cy", this.endY);
+            this.editHandler.forEach((eh) => mySvg.appendChild(eh));
+        }
+
+        disableEdit() {
+            super.disableEdit();
+            this.editHandler.forEach((eh) => mySvg.removeChild(eh));
         }
 
         /**
@@ -111,31 +195,61 @@
     }
 
 
-    let lineId = 0;
-    let currentObj = null;
+    // 鼠标是否按下
     let mousePressed = false;
-
-
+    // 是否移动
+    let mouseMove = false;
+    // 记录画图原点
     const startPoint = {x: 0, y: 0};
+
+
+    // 图形 ID
+    let lineId = 0;
+
+
     mySvg.addEventListener("mousedown", (e) => {
         mousePressed = true;
+        mouseMove = false;
+
         startPoint.x = e.offsetX;
         startPoint.y = e.offsetY;
     });
 
     mySvg.addEventListener("mouseup", (e) => {
+        const obj = e.target;
+
+        if (mousePressed) {
+            if (mouseMove) {
+                // 按下且移动
+                drawingObj.enableEdit();
+            } else {
+                // 只点击
+                if (obj === mySvg && editingObj) {
+                    // 清空编辑状态
+                    editingObj.disableEdit();
+                }
+            }
+
+        }
         mousePressed = false;
         lineId++;
-        currentObj = null;
+        drawingObj = null;
     });
 
     mySvg.addEventListener("mousemove", (e) => {
         if (mousePressed) {
-            if (!currentObj) {
-                currentObj = new SgLine({id: lineId, x: startPoint.x, y: startPoint.y})
-                mySvg.appendChild(currentObj.obj);
+            mouseMove = true;
+            // 拖且动
+            if (editingObj) {
+                editingObj.disableEdit();
+                editingObj = false;
             }
-            currentObj.moveTo('', e.offsetX, e.offsetY)
+
+            if (!drawingObj) {
+                drawingObj = new SgLine({id: lineId, x: startPoint.x, y: startPoint.y});
+                mySvg.appendChild(drawingObj.obj);
+            }
+            drawingObj.moveTo('', e.offsetX, e.offsetY)
         }
     });
 
