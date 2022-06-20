@@ -37,6 +37,8 @@
          */
         state = "";
         editHandler = [];
+        currentHandler;
+        handlerMoving;
 
 
         /**
@@ -94,10 +96,10 @@
          * @param x
          * @param y
          */
-        initHandlers(count, x, y) {
+        initHandlers(count, x, y, callback) {
             if (count > 0) {
                 for (let i = 0; i < count; i++) {
-                    this.editHandler.push(this.createHandler(x, y))
+                    this.editHandler.push(this.createHandler(x, y, callback))
                 }
             }
         }
@@ -108,13 +110,30 @@
          * @param y
          * @returns {SVGCircleElement}
          */
-        createHandler(x, y) {
+        createHandler(x, y, callback) {
             const handler = document.createElementNS("http://www.w3.org/2000/svg", "circle");
             handler.setAttribute("cx", x);
             handler.setAttribute("cy", y);
             handler.setAttribute("stroke", "black");
             handler.setAttribute("r", "5");
-            handler.classList.add("handler")
+            handler.classList.add("handler");
+
+            handler.addEventListener("mousedown", (e) => {
+                this.currentHandler = handler;
+                e.stopPropagation();
+            });
+            handler.addEventListener("mouseup", (e) => {
+                this.currentHandler = null;
+                e.stopPropagation();
+            });
+            handler.addEventListener("mousemove", (e) => {
+                e.stopPropagation();
+                if (this.currentHandler) {
+                    handler.setAttribute("cx", e.offsetX);
+                    handler.setAttribute("cy", e.offsetY);
+                    callback(handler, e.offsetX, e.offsetY);
+                }
+            });
             return handler;
         }
     }
@@ -145,7 +164,20 @@
             this.lineObj.parent = this;
 
             // 初始化两个”把手“
-            this.initHandlers(2, this.x, this.y);
+            this.initHandlers(2, this.x, this.y, (handler, x, y) => {
+                console.log("callback")
+                for (let i = 0; i < 2; i++) {
+                    if (this.editHandler[i] === handler) {
+                        if (i === 0) {
+                            this.moveTo("start", x, y);
+                        } else {
+                            this.moveTo("end", x, y);
+                        }
+                    }
+                }
+            });
+
+
             // 添加点击事件
             this.lineObj.addEventListener("click", (e) => {
                 this.enableEdit();
@@ -176,11 +208,19 @@
          * @param y
          */
         moveTo(thing, x, y) {
-            if (!thing || thing === 'end') {
-                this.endX = x;
-                this.endY = y;
-                this.lineObj.setAttribute("x2", this.endX);
-                this.lineObj.setAttribute("y2", this.endY);
+            switch (thing) {
+                case "start":
+                    this.x = x;
+                    this.y = y;
+                    this.lineObj.setAttribute("x1", this.x);
+                    this.lineObj.setAttribute("y1", this.y);
+                    break;
+                case "end":
+                default:
+                    this.endX = x;
+                    this.endY = y;
+                    this.lineObj.setAttribute("x2", this.endX);
+                    this.lineObj.setAttribute("y2", this.endY);
             }
         }
 
