@@ -16,28 +16,59 @@
     const mySvg = document.querySelector("#mySvg");
 
 
+    /**
+     * 画图基类
+     */
     class SgBaseItem {
         id;
         x;
         y;
 
 
+        /**
+         * 使用 ID 和位置初始化对象、
+         * @param id
+         * @param x
+         * @param y
+         */
         constructor({id, x, y}) {
             this.id = id;
             this.x = x;
             this.y = y;
         }
 
-        moveTo(thing, x, y) {}
+        /**
+         * 用于响应移动事件。
+         * 将本对象某某部位移动到哪个位置。
+         * @param thing 部位名称
+         * @param x 目标位置
+         * @param y 目标位置
+         */
+        moveTo(thing, x, y) {
+        }
 
-        get obj() {}
+        /**
+         * 用于获取封装的图形元素
+         */
+        get obj() {
+        }
     }
 
+
+    /**
+     * 封装的直线类。
+     */
     class SgLine extends SgBaseItem {
         endX;
         endY;
         lineObj;
 
+        /**
+         * 在构造函数中创建 svg 对象。
+         * @param id
+         * @param x
+         * @param y
+         */
         constructor({id, x, y}) {
             super({id, x, y});
             this.lineObj = document.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -45,11 +76,21 @@
             this.lineObj.setAttribute("x1", this.x);
             this.lineObj.setAttribute("y1", this.y);
             this.lineObj.setAttribute("stroke", "black");
+
+            /**
+             * 添加点击事件
+             */
             this.lineObj.addEventListener("click", (e) => {
                 console.log(`click: ${this.id}`);
             });
         }
 
+        /**
+         * 响应移动事件，默认移动末点。
+         * @param thing
+         * @param x
+         * @param y
+         */
         moveTo(thing, x, y) {
             if (!thing || thing === 'end') {
                 this.endX = x;
@@ -59,6 +100,10 @@
             }
         }
 
+        /**
+         * 返回 svg 封装的直线元素。
+         * @returns {*}
+         */
         get obj() {
             return this.lineObj;
         }
