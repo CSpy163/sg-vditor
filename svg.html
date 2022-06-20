@@ -3,11 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <title>SVG Test</title>
+    <style>
+        #mySvg {
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
 </head>
 <body>
 <svg id="mySvg"></svg>
 <script>
     const mySvg = document.querySelector("#mySvg");
+
+
+    const lineStart = {x: 0, y: 0};
+
+    function createLine(id, x1, y1, x2, y2) {
+        const lineElement = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        lineElement.setAttribute("id", id);
+        lineElement.setAttribute("x1", x1);
+        lineElement.setAttribute("y1", y1);
+        lineElement.setAttribute("x2", x2);
+        lineElement.setAttribute("y2", y2);
+        lineElement.setAttribute("stroke", "black");
+        return lineElement;
+    }
+
+    let lineId = 0;
+    let currentLine = null;
+    let mousePressed = false;
+    let mouseMoved = false;
+
+
+    mySvg.addEventListener("mousedown", (e) => {
+        mousePressed = true;
+        mouseMoved = false;
+        lineStart.x = e.offsetX;
+        lineStart.y = e.offsetY;
+        currentLine = createLine(lineId, lineStart.x, lineStart.y, lineStart.x, lineStart.y);
+        mySvg.appendChild(currentLine);
+    });
+
+    mySvg.addEventListener("mouseup", (e) => {
+        mousePressed = false;
+        if (!mouseMoved) {
+            console.log("click");
+            return;
+        }
+        currentLine.addEventListener("click", (e) => {
+            const line = e.target;
+            console.log(`click: ${line.getAttribute("id")}`);
+            line.setAttribute("stroke", "red");
+        });
+        lineId++;
+        currentLine = null;
+    });
+
+    mySvg.addEventListener("mousemove", (e) => {
+        if (mousePressed && currentLine) {
+            mouseMoved = true;
+            mySvg.removeChild(currentLine);
+            currentLine = createLine(lineId, lineStart.x, lineStart.y, e.offsetX, e.offsetY);
+            mySvg.appendChild(currentLine);
+        }
+
+    });
+
 </script>
 </body>
 </html>
