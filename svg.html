@@ -16,57 +16,82 @@
     const mySvg = document.querySelector("#mySvg");
 
 
-    const lineStart = {x: 0, y: 0};
+    class SgBaseItem {
+        id;
+        x;
+        y;
 
-    function createLine(id, x1, y1, x2, y2) {
-        const lineElement = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        lineElement.setAttribute("id", id);
-        lineElement.setAttribute("x1", x1);
-        lineElement.setAttribute("y1", y1);
-        lineElement.setAttribute("x2", x2);
-        lineElement.setAttribute("y2", y2);
-        lineElement.setAttribute("stroke", "black");
-        return lineElement;
+
+        constructor({id, x, y}) {
+            this.id = id;
+            this.x = x;
+            this.y = y;
+        }
+
+        moveTo(thing, x, y) {}
+
+        get obj() {}
     }
 
+    class SgLine extends SgBaseItem {
+        endX;
+        endY;
+        lineObj;
+
+        constructor({id, x, y}) {
+            super({id, x, y});
+            this.lineObj = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            this.lineObj.setAttribute("id", this.id);
+            this.lineObj.setAttribute("x1", this.x);
+            this.lineObj.setAttribute("y1", this.y);
+            this.lineObj.setAttribute("stroke", "black");
+            this.lineObj.addEventListener("click", (e) => {
+                console.log(`click: ${this.id}`);
+            });
+        }
+
+        moveTo(thing, x, y) {
+            if (!thing || thing === 'end') {
+                this.endX = x;
+                this.endY = y;
+                this.lineObj.setAttribute("x2", this.endX);
+                this.lineObj.setAttribute("y2", this.endY);
+            }
+        }
+
+        get obj() {
+            return this.lineObj;
+        }
+
+    }
+
+
     let lineId = 0;
-    let currentLine = null;
+    let currentObj = null;
     let mousePressed = false;
-    let mouseMoved = false;
 
 
+    const startPoint = {x: 0, y: 0};
     mySvg.addEventListener("mousedown", (e) => {
         mousePressed = true;
-        mouseMoved = false;
-        lineStart.x = e.offsetX;
-        lineStart.y = e.offsetY;
-        currentLine = createLine(lineId, lineStart.x, lineStart.y, lineStart.x, lineStart.y);
-        mySvg.appendChild(currentLine);
+        startPoint.x = e.offsetX;
+        startPoint.y = e.offsetY;
     });
 
     mySvg.addEventListener("mouseup", (e) => {
         mousePressed = false;
-        if (!mouseMoved) {
-            console.log("click");
-            return;
-        }
-        currentLine.addEventListener("click", (e) => {
-            const line = e.target;
-            console.log(`click: ${line.getAttribute("id")}`);
-            line.setAttribute("stroke", "red");
-        });
         lineId++;
-        currentLine = null;
+        currentObj = null;
     });
 
     mySvg.addEventListener("mousemove", (e) => {
-        if (mousePressed && currentLine) {
-            mouseMoved = true;
-            mySvg.removeChild(currentLine);
-            currentLine = createLine(lineId, lineStart.x, lineStart.y, e.offsetX, e.offsetY);
-            mySvg.appendChild(currentLine);
+        if (mousePressed) {
+            if (!currentObj) {
+                currentObj = new SgLine({id: lineId, x: startPoint.x, y: startPoint.y})
+                mySvg.appendChild(currentObj.obj);
+            }
+            currentObj.moveTo('', e.offsetX, e.offsetY)
         }
-
     });
 
 </script>
