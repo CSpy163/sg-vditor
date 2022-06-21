@@ -19,8 +19,6 @@
 <script>
     const mySvg = document.querySelector("#mySvg");
 
-    let drawingObj = null;
-    let editingObj = null;
 
     /**
      * 画图基类
@@ -66,7 +64,7 @@
         /**
          * 用于获取封装的图形元素
          */
-        get obj() {
+        get inner() {
         }
 
 
@@ -75,10 +73,6 @@
          */
         enableEdit() {
             this.state = "editing";
-            if (editingObj) {
-                editingObj.disableEdit();
-            }
-            editingObj = this;
         }
 
         /**
@@ -86,7 +80,6 @@
          */
         disableEdit() {
             this.state = "";
-            editingObj = null;
         }
 
 
@@ -96,10 +89,10 @@
          * @param x
          * @param y
          */
-        initHandlers(count, x, y, callback) {
+        initHandlers(count, x, y) {
             if (count > 0) {
                 for (let i = 0; i < count; i++) {
-                    this.editHandler.push(this.createHandler(x, y, callback))
+                    this.editHandler.push(this.createHandler(x, y))
                 }
             }
         }
@@ -110,30 +103,16 @@
          * @param y
          * @returns {SVGCircleElement}
          */
-        createHandler(x, y, callback) {
+        createHandler(x, y) {
             const handler = document.createElementNS("http://www.w3.org/2000/svg", "circle");
             handler.setAttribute("cx", x);
             handler.setAttribute("cy", y);
             handler.setAttribute("stroke", "black");
-            handler.setAttribute("r", "5");
+            handler.setAttribute("r", "3");
+            handler.setAttribute("fill", "white");
             handler.classList.add("handler");
+            handler.parent = this;
 
-            handler.addEventListener("mousedown", (e) => {
-                this.currentHandler = handler;
-                e.stopPropagation();
-            });
-            handler.addEventListener("mouseup", (e) => {
-                this.currentHandler = null;
-                e.stopPropagation();
-            });
-            handler.addEventListener("mousemove", (e) => {
-                e.stopPropagation();
-                if (this.currentHandler) {
-                    handler.setAttribute("cx", e.offsetX);
-                    handler.setAttribute("cy", e.offsetY);
-                    callback(handler, e.offsetX, e.offsetY);
-                }
-            });
             return handler;
         }
     }
@@ -161,21 +140,11 @@
             this.lineObj.setAttribute("x1", this.x);
             this.lineObj.setAttribute("y1", this.y);
             this.lineObj.setAttribute("stroke", "black");
+            this.lineObj.classList.add("inner")
             this.lineObj.parent = this;
 
             // 初始化两个”把手“
-            this.initHandlers(2, this.x, this.y, (handler, x, y) => {
-                console.log("callback")
-                for (let i = 0; i < 2; i++) {
-                    if (this.editHandler[i] === handler) {
-                        if (i === 0) {
-                            this.moveTo("start", x, y);
-                        } else {
-                            this.moveTo("end", x, y);
-                        }
-                    }
-                }
-            });
+            this.initHandlers(2, this.x, this.y);
 
 
             // 添加点击事件
@@ -187,12 +156,6 @@
 
         enableEdit() {
             super.enableEdit();
-            const startHandler = this.editHandler[0];
-            startHandler.setAttribute("cx", this.x);
-            startHandler.setAttribute("cy", this.y);
-            const endHandler = this.editHandler[1];
-            endHandler.setAttribute("cx", this.endX);
-            endHandler.setAttribute("cy", this.endY);
             this.editHandler.forEach((eh) => mySvg.appendChild(eh));
         }
 
@@ -210,88 +173,186 @@
         moveTo(thing, x, y) {
             switch (thing) {
                 case "start":
+                case this.editHandler[0]:
                     this.x = x;
                     this.y = y;
                     this.lineObj.setAttribute("x1", this.x);
                     this.lineObj.setAttribute("y1", this.y);
+                    const startHandler = this.editHandler[0];
+                    startHandler.setAttribute("cx", this.x);
+                    startHandler.setAttribute("cy", this.y);
                     break;
                 case "end":
+                case this.editHandler[1]:
                 default:
                     this.endX = x;
                     this.endY = y;
                     this.lineObj.setAttribute("x2", this.endX);
                     this.lineObj.setAttribute("y2", this.endY);
+                    const endHandler = this.editHandler[1];
+                    endHandler.setAttribute("cx", this.endX);
+                    endHandler.setAttribute("cy", this.endY);
             }
+            this.enableEdit();
+
         }
 
         /**
          * 返回 svg 封装的直线元素。
          * @returns {*}
          */
-        get obj() {
+        get inner() {
             return this.lineObj;
         }
 
     }
 
 
-    // 鼠标是否按下
-    let mousePressed = false;
-    // 是否移动
-    let mouseMove = false;
-    // 记录画图原点
-    const startPoint = {x: 0, y: 0};
+    /**
+     * 记录当前活动
+     */
+    const myHand = {
+        /**
+         * 模式
+         * "": 空模式
+         * pen: 画笔模式
+         *
+         */
+        mode: "pen",
+        // 如果画图开始时，点击到了 handler，则切换本次操作为 resizing
+        resizing: false,
+        /**
+         * 画笔模式下，可以确定绘画对象
+         */
+        type: "line",
+        /**
+         * 当前操作的对象，一般为鼠标按钮点下时的 e.target
+         */
+        obj: null,
+        /**
+         * 当前处于编辑状态的对象
+         */
+        edits: [],
+        /**
+         * 用于记录鼠标点下时的 x 轴坐标
+         */
+        startX: 0,
+        /**
+         * 用于记录鼠标点下时的 y 轴坐标
+         */
+        startY: 0,
+        /**
+         * 记录鼠标按下状态
+         */
+        mousePressed: false,
+        /**
+         * 记录鼠标按下后，是否移动过，单次按压有效
+         */
+        mousePressingMove: false,
+        /**
+         * 清空已处于编辑状态的对象
+         */
+        clearEdit() {
+            if (this.edits) {
+                console.log(`clear Edit ${this.edits.length}`);
+                this.edits.forEach((ed) => ed.disableEdit());
+                this.edits.splice(0);
+            }
+        },
+        /**
+         * 将当前对象添加到编辑队列中
+         * @param sgNode
+         */
+        addEdit(sgNode) {
+            sgNode.enableEdit();
+            this.edits.push(sgNode);
+        }
 
-
-    // 图形 ID
-    let lineId = 0;
+    }
 
 
     mySvg.addEventListener("mousedown", (e) => {
-        mousePressed = true;
-        mouseMove = false;
+        // 监听鼠标按下事件，设置 myHand
+        myHand.mousePressed = true;
+        myHand.mousePressingMove = false;
+        myHand.startX = e.offsetX;
+        myHand.startY = e.offsetY;
 
-        startPoint.x = e.offsetX;
-        startPoint.y = e.offsetY;
-    });
 
-    mySvg.addEventListener("mouseup", (e) => {
-        const obj = e.target;
-
-        if (mousePressed) {
-            if (mouseMove) {
-                // 按下且移动
-                drawingObj.enableEdit();
-            } else {
-                // 只点击
-                if (obj === mySvg && editingObj) {
-                    // 清空编辑状态
-                    editingObj.disableEdit();
-                }
-            }
-
+        if (e.target.classList.contains("handler")) {
+            // 如果点到 handler ，则切换成选择（调整）模式
+            myHand.resizing = true;
+            // myHand.mode = "";
         }
-        mousePressed = false;
-        lineId++;
-        drawingObj = null;
+        if (e.target === mySvg) {
+            myHand.clearEdit();
+        } else {
+            myHand.obj = e.target;
+        }
     });
-
     mySvg.addEventListener("mousemove", (e) => {
-        if (mousePressed) {
-            mouseMove = true;
-            // 拖且动
-            if (editingObj) {
-                editingObj.disableEdit();
-                editingObj = false;
-            }
+        if (myHand.mousePressed) {
+            // 只处理按下移动事件
+            myHand.mousePressingMove = true;
 
-            if (!drawingObj) {
-                drawingObj = new SgLine({id: lineId, x: startPoint.x, y: startPoint.y});
-                mySvg.appendChild(drawingObj.obj);
+            const mode = myHand.resizing ? "" : myHand.mode;
+            switch (mode) {
+                case "pen":
+                    // 绘画
+                    console.log("绘画")
+                    if (!myHand.obj) {
+                        myHand.obj = new SgLine({id: 1, x: e.offsetX, y: e.offsetY});
+                        mySvg.appendChild(myHand.obj.inner);
+                        console.log("新建obj")
+                    }
+                    console.log("移动obj")
+                    myHand.obj.moveTo(null, e.offsetX, e.offsetY)
+                    break;
+                case "":
+                default:
+                    console.log("拖拽")
+                    // 拖拽
+                    if (myHand.obj) {
+                        // 如果拖到东西
+                        if (myHand.obj.classList.contains("handler")) {
+                            myHand.obj.parent.moveTo(myHand.obj, e.offsetX, e.offsetY);
+                        }
+                    }
             }
-            drawingObj.moveTo('', e.offsetX, e.offsetY)
         }
     });
+    mySvg.addEventListener("mouseup", (e) => {
+
+        if (myHand.mousePressingMove) {
+            // 拖动
+            const mode = myHand.resizing ? "" : myHand.mode;
+            switch (mode) {
+                case "pen":
+                    if (myHand.obj) {
+                        if (myHand.obj.classList?.contains("handler")) {
+                            myHand.addEdit(myHand.obj.parent);
+                        } else {
+                            myHand.addEdit(myHand.obj);
+                        }
+                    }
+                    break;
+                default:
+            }
+
+        } else {
+            // 点击
+            if (e.target === mySvg) {
+                myHand.clearEdit();
+            }
+
+        }
+        // 重置 myHand
+        myHand.obj = null;
+        myHand.mousePressed = false;
+        myHand.mousePressingMove = false;
+        myHand.resizing = false;
+    });
+
 
 </script>
 </body>
