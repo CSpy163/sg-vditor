@@ -19,6 +19,35 @@
 <script>
     const mySvg = document.querySelector("#mySvg");
 
+    class SgItemNode {
+        prev;
+        next;
+        item;
+        /**
+         * 操作类型
+         * create <-> delete
+         * modify <-> modify
+         */
+        operateType;
+        capture;
+        captureEnd;
+
+        constructor(item) {
+            this.item = item;
+        }
+
+        // setPrev(prevItem) {
+        //
+        // }
+
+        setNext(nextItem) {
+            this.next = nextItem;
+            nextItem.prev = this;
+        }
+
+
+    }
+
 
     /**
      * 画图基类
@@ -37,6 +66,8 @@
         editHandler = [];
         currentHandler;
         handlerMoving;
+        capture;
+        captureEnd;
 
 
         /**
@@ -166,6 +197,26 @@
         }
 
         /**
+         * 获取快照
+         */
+        takeCapture() {
+            this.capture = this.lineObj.cloneNode(true);
+            return this.capture;
+        }
+
+        recoveryFromCapture(capture) {
+            mySvg.removeChild(this.inner);
+            this.inner = capture;
+            this.inner.parent = this;
+            this.x = parseInt(this.inner.getAttribute("x1"));
+            this.y = parseInt(this.inner.getAttribute("y1"));
+            this.endX = parseInt(this.inner.getAttribute("x2"));
+            this.endY = parseInt(this.inner.getAttribute("y2"));
+            mySvg.appendChild(this.inner);
+        }
+
+
+        /**
          * 响应移动事件，默认移动末点。
          * @param thing
          * @param x
@@ -198,6 +249,14 @@
             myHand.addEdit(this);
         }
 
+        remove() {
+            mySvg.removeChild(this.inner);
+        }
+
+        show() {
+            mySvg.appendChild(this.inner);
+        }
+
         refreshStart() {
             this.lineObj.setAttribute("x1", this.x);
             this.lineObj.setAttribute("y1", this.y);
@@ -223,6 +282,10 @@
             return this.lineObj;
         }
 
+        set inner(inner) {
+            this.lineObj = inner;
+        }
+
     }
 
 
@@ -237,8 +300,8 @@
          *
          */
         mode: "pen",
-        // 如果画图开始时，点击到了 handler，则切换本次操作为 resizing
-        resizing: false,
+        // 如果是 resize 或者 move，则标记为 modify
+        modify: false,
         /**
          * 画笔模式下，可以确定绘画对象
          */
@@ -268,11 +331,92 @@
          */
         mousePressingMove: false,
         /**
+         * 操作栈
+         * 对象指向头节点
+         */
+        nodeLinkList: null,
+        /**
+         * 当前操作节点
+         */
+        currentNode: null,
+
+        /**
+         * 将 SgItem 添加到操作栈中
+         * @param sgItem
+         */
+        addNodeToLinkList(newCurrent) {
+            // switch (newCurrent.operateType) {
+            //     case  "create":
+            //         console.log("创建");
+            //         break;
+            //     case "delete":
+            //         console.log("删除");
+            //         break;
+            //     case "modify":
+            //         console.log("修改");
+            // }
+            if (this.currentNode) {
+                this.currentNode.setNext(newCurrent);
+            }
+            // 如果没有头节点
+            if (!this.nodeLinkList) {
+                this.nodeLinkList = newCurrent;
+            }
+            this.currentNode = newCurrent;
+        },
+        undo() {
+            // console.log("撤销")
+            if (this.currentNode) {
+                myHand.clearEdit();
+                switch (this.currentNode.operateType) {
+                    case "create":
+                        this.currentNode.item.remove();
+                        break;
+                    case "delete":
+                        this.currentNode.item.show();
+                        break;
+                    case "modify":
+                        this.currentNode.item.recoveryFromCapture(this.currentNode.capture);
+                        break;
+                    default:
+                }
+                this.currentNode = this.currentNode.prev;
+            }
+        },
+        undoRemoveNode() {
+            // console.log("反撤销")
+            if (this.currentNode) {
+                if (this.currentNode.next) {
+                    this.currentNode = this.currentNode.next;
+                }
+            } else {
+                if (this.nodeLinkList) {
+                    this.currentNode = this.nodeLinkList;
+                }
+            }
+            if (this.currentNode) {
+                myHand.clearEdit();
+                switch (this.currentNode.operateType) {
+                    case "create":
+                        this.currentNode.item.show();
+                        break;
+                    case "delete":
+                        this.currentNode.item.delete();
+                        break;
+                    case "modify":
+                        this.currentNode.item.recoveryFromCapture(this.currentNode.captureEnd);
+                        break;
+                    default:
+                }
+            }
+        },
+
+
+        /**
          * 清空已处于编辑状态的对象
          */
         clearEdit() {
             if (this.edits) {
-                console.log(`clear Edit ${this.edits.length}`);
                 this.edits.forEach((ed) => ed.disableEdit());
                 this.edits.clear();
             }
@@ -299,11 +443,11 @@
 
         if (e.target.classList.contains("handler")) {
             // 如果点到 handler ，则切换成选择（调整）模式
-            myHand.resizing = true;
+            myHand.modify = true;
             // myHand.mode = "";
         }
         if (e.target.classList.contains("inner")) {
-            myHand.resizing = true;
+            myHand.modify = true;
             myHand.clearEdit();
         }
         if (e.target === mySvg) {
@@ -317,22 +461,21 @@
             // 只处理按下移动事件
             myHand.mousePressingMove = true;
 
-            const mode = myHand.resizing ? "" : myHand.mode;
+            const mode = myHand.modify ? "modify" : myHand.mode;
             switch (mode) {
                 case "pen":
                     // 绘画
-                    console.log("绘画")
+                    // console.log("绘画")
                     if (!myHand.obj) {
                         myHand.obj = new SgLine({id: 1, x: e.offsetX, y: e.offsetY});
                         mySvg.appendChild(myHand.obj.inner);
-                        console.log("新建obj")
+                        // console.log("新建obj")
                     }
-                    console.log("移动obj")
+                    // console.log("移动obj")
                     myHand.obj.moveTo("end", e.offsetX, e.offsetY)
                     break;
-                case "":
-                default:
-                    console.log("拖拽")
+                case "modify":
+                    // console.log("拖拽")
                     // 拖拽
                     if (myHand.obj) {
                         // 如果拖到东西
@@ -345,18 +488,35 @@
                         myHand.startX = e.offsetX;
                         myHand.startY = e.offsetY;
                     }
+                    break;
+                case "":
+                default:
+
             }
         }
     });
     mySvg.addEventListener("mouseup", (e) => {
         if (myHand.mousePressingMove) {
             // 拖动
-            const mode = myHand.resizing ? "" : myHand.mode;
+            const mode = myHand.modify ? "modify" : myHand.mode;
             switch (mode) {
                 case "pen":
                     if (myHand.obj) {
-                        if (myHand.obj.classList?.contains("handler")) {
-                            myHand.addEdit(myHand.obj.parent);
+                        const currentNode = new SgItemNode(myHand.obj);
+                        currentNode.operateType = "create";
+                        myHand.obj.takeCapture();
+                        myHand.addNodeToLinkList(currentNode);
+                    }
+                    break;
+                case "modify":
+                    if (myHand.obj) {
+                        if (myHand.obj.classList.contains("handler") || myHand.obj.classList.contains("inner")) {
+                            const sgItem = myHand.obj.parent;
+                            const currentNode = new SgItemNode(sgItem);
+                            currentNode.operateType = "modify";
+                            currentNode.capture = sgItem.capture;
+                            currentNode.captureEnd = sgItem.takeCapture();
+                            myHand.addNodeToLinkList(currentNode);
                         }
                     }
                     break;
@@ -378,9 +538,20 @@
         myHand.obj = null;
         myHand.mousePressed = false;
         myHand.mousePressingMove = false;
-        myHand.resizing = false;
+        myHand.modify = false;
     });
 
+
+    document.addEventListener("keypress", (e) => {
+        if (e.ctrlKey && e.code === 'KeyZ') {
+            myHand.clearEdit();
+            if (e.shiftKey) {
+                myHand.undoRemoveNode();
+            } else {
+                myHand.undo();
+            }
+        }
+    })
 
 </script>
 </body>
