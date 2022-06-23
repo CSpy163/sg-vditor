@@ -32,9 +32,9 @@
          * modify <-> modify
          */
         mode;
-        // 快照(id数组或者是全体对象)
+        // 快照
         capture;
-        // 结束快照(id数组或者是全体对象)
+        // 结束快照
         captureEnd;
 
         constructor(captureEnd) {
@@ -54,7 +54,7 @@
         // create / delete / modify
         mode: "",
         /**
-         * 画笔模式下，可以确定绘画对象
+         * 当前鼠标类型，为空则表示选择模式
          */
         type: "line",
         /**
@@ -62,17 +62,22 @@
          */
         obj: null,
         /**
-         * 现有把手
+         * 现有把手，用于维护编辑状态的所有对象
          */
         handlers: [],
         /**
-         * 用于记录鼠标点下时的 x 轴坐标
+         * 用于记录 x 轴坐标
+         * 绘图时：用作记录原点
+         * 拖动时：可以复用为上一次移动的点
          */
         startX: 0,
         /**
-         * 用于记录鼠标点下时的 y 轴坐标
+         * 用于记录 y 轴坐标
+         * 绘图时：用作记录原点
+         * 拖动时：可以复用为上一次移动的点
          */
         startY: 0,
+
         /**
          * 记录鼠标按下状态
          */
@@ -207,7 +212,6 @@
                         defaultHandler = createHandler(obj, "x2", "y2"));
                     return defaultHandler;
             }
-
         },
         /**
          * 清空所有对象编辑状态
@@ -231,6 +235,16 @@
                 });
             }
             return captures;
+        },
+        /**
+         * 重置 myHand 状态，一般用于鼠标点击之后
+         */
+        resetHand() {
+            this.obj = null;
+            this.mousePressed = false;
+            this.mousePressingMove = false;
+            this.capture = null;
+            this.mode = "";
         }
 
     }
@@ -250,12 +264,22 @@
         handler.classList.add("handler");
         handler.parent = parent;
         mySvg.appendChild(handler);
+        /**
+         * 将当前把手移动到指定地点，顺带移动绑定的图形对象
+         * @param x
+         * @param y
+         */
         handler.moveTo = function (x, y) {
             this.setAttribute("cx", x);
             this.setAttribute("cy", y);
             this.parent.setAttribute(this.getAttribute("xBindTo"), x);
             this.parent.setAttribute(this.getAttribute("yBindTo"), y);
         };
+        /**
+         * 使用偏移量移动把手，顺带移动绑定的图形对象
+         * @param offsetX
+         * @param offsetY
+         */
         handler.moveByOffset = function (offsetX, offsetY) {
             const x = parseInt(this.getAttribute("cx")) + offsetX;
             const y = parseInt(this.getAttribute("cy")) + offsetY;
@@ -269,7 +293,7 @@
     }
 
     /**
-     * 动态创建元素
+     * 动态创建对象，同时使用 option 动态设置属性
      * @param type
      * @param option
      * @returns {*}
@@ -285,9 +309,14 @@
         return drawObj;
     }
 
+    /**
+     * 获取唯一ID
+     * @returns {string}
+     */
     function getId() {
-        return `UID${(new Date()).getTime()}`
+        return `UID${(new Date()).getTime()}`;
     }
+
 
     mySvg.addEventListener("mousedown", (e) => {
         // 监听鼠标按下事件，设置 myHand
@@ -372,14 +401,13 @@
         }
 
         // 重置 myHand
-        myHand.obj = null;
-        myHand.mousePressed = false;
-        myHand.mousePressingMove = false;
-        myHand.capture = null;
-        myHand.mode = "";
+        myHand.resetHand();
     });
 
 
+    /**
+     * 响应键盘事件
+     */
     document.addEventListener("keypress", (e) => {
         if (e.code === "Space") {
             myHand.type = myHand.type ? "" : "line";
