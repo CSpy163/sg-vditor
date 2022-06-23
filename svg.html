@@ -19,289 +19,40 @@
 <script>
     const mySvg = document.querySelector("#mySvg");
 
+
+    /**
+     * 操作栈对象
+     */
     class SgItemNode {
-        prev;
-        next;
-        item;
+        prevNode;
+        nextNode;
         /**
          * 操作类型
          * create <-> delete
          * modify <-> modify
          */
-        operateType;
+        mode;
+        // 快照(id数组或者是全体对象)
         capture;
+        // 结束快照(id数组或者是全体对象)
         captureEnd;
 
-        constructor(item) {
-            this.item = item;
+        constructor(captureEnd) {
+            this.captureEnd = captureEnd;
         }
 
-        // setPrev(prevItem) {
-        //
-        // }
-
-        setNext(nextItem) {
-            this.next = nextItem;
-            nextItem.prev = this;
-        }
-
-
-    }
-
-
-    /**
-     * 画图基类
-     */
-    class SgBaseItem {
-        id;
-        x;
-        y;
-        /**
-         * 3种状态：
-         * "": 正常
-         * "moving": 移动状态（整体移动）
-         * "editing": 选中状态（可进行大小调整）
-         */
-        state = "";
-        editHandler = [];
-        currentHandler;
-        handlerMoving;
-        capture;
-        captureEnd;
-
-
-        /**
-         * 使用 ID 和位置初始化对象、
-         * @param id
-         * @param x
-         * @param y
-         */
-        constructor({id, x, y}) {
-            this.id = id;
-            this.x = x;
-            this.y = y;
-        }
-
-        /**
-         * 用于响应移动事件。
-         * 将本对象某某部位移动到哪个位置。
-         * @param thing 部位名称
-         * @param x 目标位置
-         * @param y 目标位置
-         */
-        moveTo(thing, x, y) {
-        }
-
-        /**
-         * 用于获取封装的图形元素
-         */
-        get inner() {
-        }
-
-
-        /**
-         * 进入编辑模式
-         */
-        enableEdit() {
-            this.state = "editing";
-        }
-
-        /**
-         * 取消编辑模式
-         */
-        disableEdit() {
-            this.state = "";
-        }
-
-
-        /**
-         * 快捷初始化”把手“
-         * @param count
-         * @param x
-         * @param y
-         */
-        initHandlers(count, x, y) {
-            if (count > 0) {
-                for (let i = 0; i < count; i++) {
-                    this.editHandler.push(this.createHandler(x, y))
-                }
-            }
-        }
-
-        /**
-         * 编辑“把手”
-         * @param x
-         * @param y
-         * @returns {SVGCircleElement}
-         */
-        createHandler(x, y) {
-            const handler = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-            handler.setAttribute("cx", x);
-            handler.setAttribute("cy", y);
-            handler.setAttribute("stroke", "black");
-            handler.setAttribute("r", "3");
-            handler.setAttribute("fill", "white");
-            handler.classList.add("handler");
-            handler.parent = this;
-
-            return handler;
+        setNext(nextNode) {
+            this.nextNode = nextNode;
+            nextNode.prevNode = this;
         }
     }
-
-
-    /**
-     * 封装的直线类。
-     */
-    class SgLine extends SgBaseItem {
-        endX;
-        endY;
-        lineObj;
-
-
-        /**
-         * 在构造函数中创建 svg 对象。
-         * @param id
-         * @param x
-         * @param y
-         */
-        constructor({id, x, y}) {
-            super({id, x, y});
-            this.lineObj = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            this.lineObj.setAttribute("id", this.id);
-            this.lineObj.setAttribute("x1", this.x);
-            this.lineObj.setAttribute("y1", this.y);
-            this.lineObj.setAttribute("stroke-width", "2");
-            this.lineObj.setAttribute("stroke", "black");
-            this.lineObj.classList.add("inner")
-            this.lineObj.parent = this;
-
-            // 初始化两个”把手“
-            this.initHandlers(2, this.x, this.y);
-
-
-            // 添加点击事件
-            this.lineObj.addEventListener("click", (e) => {
-                this.enableEdit();
-            });
-        }
-
-
-        enableEdit() {
-            super.enableEdit();
-            this.editHandler.forEach((eh) => mySvg.appendChild(eh));
-        }
-
-        disableEdit() {
-            super.disableEdit();
-            this.editHandler.forEach((eh) => mySvg.removeChild(eh));
-        }
-
-        /**
-         * 获取快照
-         */
-        takeCapture() {
-            this.capture = this.lineObj.cloneNode(true);
-            return this.capture;
-        }
-
-        recoveryFromCapture(capture) {
-            mySvg.removeChild(this.inner);
-            this.inner = capture;
-            this.inner.parent = this;
-            this.x = parseInt(this.inner.getAttribute("x1"));
-            this.y = parseInt(this.inner.getAttribute("y1"));
-            this.endX = parseInt(this.inner.getAttribute("x2"));
-            this.endY = parseInt(this.inner.getAttribute("y2"));
-            mySvg.appendChild(this.inner);
-        }
-
-
-        /**
-         * 响应移动事件，默认移动末点。
-         * @param thing
-         * @param x
-         * @param y
-         */
-        moveTo(thing, x, y) {
-            switch (thing) {
-                case "start":
-                case this.editHandler[0]:
-                    this.x = x;
-                    this.y = y;
-                    this.refreshStart();
-                    break;
-                case "end":
-                case this.editHandler[1]:
-                    this.endX = x;
-                    this.endY = y;
-                    this.refreshEnd();
-                    break;
-                case this:
-                default:
-                    // 整体移动
-                    this.x += x;
-                    this.y += y;
-                    this.endX += x;
-                    this.endY += y;
-                    this.refreshStart();
-                    this.refreshEnd();
-            }
-            myHand.addEdit(this);
-        }
-
-        remove() {
-            mySvg.removeChild(this.inner);
-        }
-
-        show() {
-            mySvg.appendChild(this.inner);
-        }
-
-        refreshStart() {
-            this.lineObj.setAttribute("x1", this.x);
-            this.lineObj.setAttribute("y1", this.y);
-            const startHandler = this.editHandler[0];
-            startHandler.setAttribute("cx", this.x);
-            startHandler.setAttribute("cy", this.y);
-        }
-
-        refreshEnd() {
-            this.lineObj.setAttribute("x2", this.endX);
-            this.lineObj.setAttribute("y2", this.endY);
-            const endHandler = this.editHandler[1];
-            endHandler.setAttribute("cx", this.endX);
-            endHandler.setAttribute("cy", this.endY);
-        }
-
-
-        /**
-         * 返回 svg 封装的直线元素。
-         * @returns {*}
-         */
-        get inner() {
-            return this.lineObj;
-        }
-
-        set inner(inner) {
-            this.lineObj = inner;
-        }
-
-    }
-
 
     /**
      * 记录当前活动
      */
     const myHand = {
-        /**
-         * 模式
-         * "": 空模式
-         * pen: 画笔模式
-         *
-         */
-        mode: "pen",
-        // 如果是 resize 或者 move，则标记为 modify
-        modify: false,
+        // create / delete / modify
+        mode: "",
         /**
          * 画笔模式下，可以确定绘画对象
          */
@@ -311,9 +62,9 @@
          */
         obj: null,
         /**
-         * 当前处于编辑状态的对象
+         * 现有把手
          */
-        edits: new Set(),
+        handlers: [],
         /**
          * 用于记录鼠标点下时的 x 轴坐标
          */
@@ -339,22 +90,16 @@
          * 当前操作节点
          */
         currentNode: null,
+        /**
+         * 临时快照
+         */
+        capture: null,
+
 
         /**
-         * 将 SgItem 添加到操作栈中
-         * @param sgItem
+         * 将 Node 添加到操作栈中
          */
         addNodeToLinkList(newCurrent) {
-            // switch (newCurrent.operateType) {
-            //     case  "create":
-            //         console.log("创建");
-            //         break;
-            //     case "delete":
-            //         console.log("删除");
-            //         break;
-            //     case "modify":
-            //         console.log("修改");
-            // }
             if (this.currentNode) {
                 this.currentNode.setNext(newCurrent);
             }
@@ -364,30 +109,46 @@
             }
             this.currentNode = newCurrent;
         },
+        /**
+         * 撤销
+         */
         undo() {
             // console.log("撤销")
             if (this.currentNode) {
-                myHand.clearEdit();
-                switch (this.currentNode.operateType) {
+                myHand.clearHandlers();
+                switch (this.currentNode.mode) {
                     case "create":
-                        this.currentNode.item.remove();
+                        for (let obj of this.currentNode.captureEnd) {
+                            mySvg.removeChild(mySvg.querySelector(`#${obj.getAttribute("id")}`));
+                        }
                         break;
                     case "delete":
-                        this.currentNode.item.show();
+                        for (let obj of this.currentNode.capture) {
+                            mySvg.appendChild(obj);
+                        }
                         break;
                     case "modify":
-                        this.currentNode.item.recoveryFromCapture(this.currentNode.capture);
+                        for (let obj of this.currentNode.captureEnd) {
+                            mySvg.removeChild(mySvg.querySelector(`#${obj.getAttribute("id")}`));
+                        }
+                        for (let obj of this.currentNode.capture) {
+                            mySvg.appendChild(obj);
+                        }
                         break;
                     default:
                 }
-                this.currentNode = this.currentNode.prev;
+                this.currentNode = this.currentNode.prevNode;
             }
         },
+        /**
+         * 反撤销
+         */
         undoRemoveNode() {
-            // console.log("反撤销")
             if (this.currentNode) {
-                if (this.currentNode.next) {
-                    this.currentNode = this.currentNode.next;
+                if (this.currentNode.nextNode) {
+                    this.currentNode = this.currentNode.nextNode;
+                } else {
+                    return;
                 }
             } else {
                 if (this.nodeLinkList) {
@@ -395,43 +156,138 @@
                 }
             }
             if (this.currentNode) {
-                myHand.clearEdit();
-                switch (this.currentNode.operateType) {
+                myHand.clearHandlers();
+                switch (this.currentNode.mode) {
                     case "create":
-                        this.currentNode.item.show();
+                        for (let obj of this.currentNode.captureEnd) {
+                            mySvg.appendChild(obj);
+                        }
                         break;
                     case "delete":
-                        this.currentNode.item.delete();
+                        for (let obj of this.currentNode.capture) {
+                            mySvg.removeChild(mySvg.querySelector(`#${obj.getAttribute("id")}`));
+                        }
                         break;
                     case "modify":
-                        this.currentNode.item.recoveryFromCapture(this.currentNode.captureEnd);
+                        for (let obj of this.currentNode.capture) {
+                            mySvg.removeChild(mySvg.querySelector(`#${obj.getAttribute("id")}`));
+                        }
+                        for (let obj of this.currentNode.captureEnd) {
+                            mySvg.appendChild(obj);
+                        }
+
                         break;
                     default:
                 }
             }
         },
-
-
         /**
-         * 清空已处于编辑状态的对象
+         * 判断当前对象是否处于编辑状态
+         * @param obj
+         * @returns {boolean}
          */
-        clearEdit() {
-            if (this.edits) {
-                this.edits.forEach((ed) => ed.disableEdit());
-                this.edits.clear();
+        isEditing(obj) {
+            for (let i = 0; i < this.handlers.length; i++) {
+                if (this.handlers[i].parent === obj) {
+                    return true;
+                }
+            }
+            return false;
+        },
+        /**
+         * 为当前对象添加把手
+         * @param obj
+         * @returns {SVGCircleElement}
+         */
+        addHandlersByObj(obj) {
+            let defaultHandler = null;
+            switch (obj.getAttribute("type")) {
+                case "line":
+                    this.handlers.push(createHandler(obj, "x1", "y1"),
+                        defaultHandler = createHandler(obj, "x2", "y2"));
+                    return defaultHandler;
+            }
+
+        },
+        /**
+         * 清空所有对象编辑状态
+         */
+        clearHandlers() {
+            if (this.handlers) {
+                this.handlers.forEach(h => mySvg.removeChild(h));
+                this.handlers.splice(0);
             }
         },
         /**
-         * 将当前对象添加到编辑队列中
-         * @param sgNode
+         * 以当前把手所指对象创建快照
+         * @returns {*[]}
          */
-        addEdit(sgNode) {
-            sgNode.enableEdit();
-            this.edits.add(sgNode);
+        takeCapture() {
+            // 当前编辑对象快照
+            const captures = []
+            if (this.handlers) {
+                new Set(this.handlers.map((h) => h.parent)).forEach((obj) => {
+                    captures.push(obj.cloneNode(true));
+                });
+            }
+            return captures;
         }
 
     }
 
+    /**
+     * 创建“把手”
+     */
+    function createHandler(parent, xBindTo, yBindTo) {
+        const handler = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        handler.setAttribute("xBindTo", xBindTo);
+        handler.setAttribute("yBindTo", yBindTo);
+        handler.setAttribute("cx", parent.getAttribute(xBindTo));
+        handler.setAttribute("cy", parent.getAttribute(yBindTo));
+        handler.setAttribute("stroke", "black");
+        handler.setAttribute("r", "3");
+        handler.setAttribute("fill", "white");
+        handler.classList.add("handler");
+        handler.parent = parent;
+        mySvg.appendChild(handler);
+        handler.moveTo = function (x, y) {
+            this.setAttribute("cx", x);
+            this.setAttribute("cy", y);
+            this.parent.setAttribute(this.getAttribute("xBindTo"), x);
+            this.parent.setAttribute(this.getAttribute("yBindTo"), y);
+        };
+        handler.moveByOffset = function (offsetX, offsetY) {
+            const x = parseInt(this.getAttribute("cx")) + offsetX;
+            const y = parseInt(this.getAttribute("cy")) + offsetY;
+            this.setAttribute("cx", x);
+            this.setAttribute("cy", y);
+            this.parent.setAttribute(this.getAttribute("xBindTo"), x);
+            this.parent.setAttribute(this.getAttribute("yBindTo"), y);
+        }
+
+        return handler;
+    }
+
+    /**
+     * 动态创建元素
+     * @param type
+     * @param option
+     * @returns {*}
+     */
+    function createObjectBy(type, option) {
+        const drawObj = document.createElementNS("http://www.w3.org/2000/svg", type);
+        for (const [key, value] of Object.entries(option)) {
+            drawObj.setAttribute(key, value);
+        }
+        drawObj.setAttribute("stroke-width", "2");
+        drawObj.setAttribute("stroke", "black");
+        drawObj.setAttribute("id", getId());
+        return drawObj;
+    }
+
+    function getId() {
+        return `UID${(new Date()).getTime()}`
+    }
 
     mySvg.addEventListener("mousedown", (e) => {
         // 监听鼠标按下事件，设置 myHand
@@ -440,111 +296,97 @@
         myHand.startX = e.offsetX;
         myHand.startY = e.offsetY;
 
-
-        if (e.target.classList.contains("handler")) {
-            // 如果点到 handler ，则切换成选择（调整）模式
-            myHand.modify = true;
-            // myHand.mode = "";
-        }
-        if (e.target.classList.contains("inner")) {
-            myHand.modify = true;
-            myHand.clearEdit();
-        }
-        if (e.target === mySvg) {
-            myHand.clearEdit();
-        } else {
-            myHand.obj = e.target;
-        }
+        myHand.obj = e.target;
     });
     mySvg.addEventListener("mousemove", (e) => {
         if (myHand.mousePressed) {
             // 只处理按下移动事件
             myHand.mousePressingMove = true;
 
-            const mode = myHand.modify ? "modify" : myHand.mode;
-            switch (mode) {
-                case "pen":
-                    // 绘画
-                    // console.log("绘画")
-                    if (!myHand.obj) {
-                        myHand.obj = new SgLine({id: 1, x: e.offsetX, y: e.offsetY});
-                        mySvg.appendChild(myHand.obj.inner);
-                        // console.log("新建obj")
-                    }
-                    // console.log("移动obj")
-                    myHand.obj.moveTo("end", e.offsetX, e.offsetY)
-                    break;
-                case "modify":
-                    // console.log("拖拽")
-                    // 拖拽
-                    if (myHand.obj) {
-                        // 如果拖到东西
-                        if (myHand.obj.classList.contains("handler")) {
-                            myHand.obj.parent.moveTo(myHand.obj, e.offsetX, e.offsetY);
+            if (myHand.obj.classList.contains("handler")) {
+                if (!myHand.mode) {
+                    // 把当前选中的对象，创建快照
+                    myHand.capture = myHand.takeCapture();
+                    myHand.mode = "modify";
+                }
+                myHand.obj.moveTo(e.offsetX, e.offsetY)
+            } else {
+                if (myHand.type) {
+                    myHand.clearHandlers();
+                    const drawObj = createObjectBy(myHand.type, {
+                        x1: myHand.startX,
+                        y1: myHand.startY,
+                        x2: e.offsetX,
+                        y2: e.offsetY,
+                        type: myHand.type
+                    });
+                    mySvg.appendChild(drawObj);
+                    myHand.mode = "create";
+                    myHand.obj = myHand.addHandlersByObj(drawObj);
+                } else {
+                    if (myHand.obj === mySvg) {
+                        // todo 绘制选区
+                    } else {
+                        if (!myHand.isEditing(myHand.obj)) {
+                            myHand.clearHandlers();
+                            myHand.addHandlersByObj(myHand.obj);
                         }
-                        if (myHand.obj.classList.contains("inner")) {
-                            myHand.obj.parent.moveTo("", e.offsetX - myHand.startX, e.offsetY - myHand.startY);
+                        if (myHand.mode !== "modify") {
+                            // 把当前选中的对象，创建快照
+                            myHand.capture = myHand.takeCapture();
+                            myHand.mode = "modify";
+                        }
+
+                        for (let i = 0; i < myHand.handlers.length; i++) {
+                            myHand.handlers[i].moveByOffset(e.offsetX - myHand.startX, e.offsetY - myHand.startY);
                         }
                         myHand.startX = e.offsetX;
                         myHand.startY = e.offsetY;
                     }
-                    break;
-                case "":
-                default:
+                }
 
             }
         }
     });
     mySvg.addEventListener("mouseup", (e) => {
         if (myHand.mousePressingMove) {
-            // 拖动
-            const mode = myHand.modify ? "modify" : myHand.mode;
-            switch (mode) {
-                case "pen":
-                    if (myHand.obj) {
-                        const currentNode = new SgItemNode(myHand.obj);
-                        currentNode.operateType = "create";
-                        myHand.obj.takeCapture();
-                        myHand.addNodeToLinkList(currentNode);
-                    }
-                    break;
-                case "modify":
-                    if (myHand.obj) {
-                        if (myHand.obj.classList.contains("handler") || myHand.obj.classList.contains("inner")) {
-                            const sgItem = myHand.obj.parent;
-                            const currentNode = new SgItemNode(sgItem);
-                            currentNode.operateType = "modify";
-                            currentNode.capture = sgItem.capture;
-                            currentNode.captureEnd = sgItem.takeCapture();
-                            myHand.addNodeToLinkList(currentNode);
-                        }
-                    }
-                    break;
-                default:
+            if (myHand.obj === mySvg) {
+                // todo 设置选取内的图形为唯一选中
+            } else {
+                const captureEnd = myHand.takeCapture();
+                let sgNode = new SgItemNode(captureEnd);
+                sgNode.mode = myHand.mode;
+                sgNode.capture = myHand.capture;
+                myHand.addNodeToLinkList(sgNode);
             }
-
         } else {
-            // 点击
-            if (e.target === mySvg) {
-                myHand.clearEdit();
+            if (myHand.obj === mySvg) {
+                myHand.clearHandlers();
             }
-            if (e.target.classList.contains("inner")) {
-                myHand.clearEdit();
-                myHand.edits.add(e.target.parent);
+            // 点击事件
+            if (myHand.obj !== mySvg && !myHand.obj.classList.contains("handler")) {
+                // 既不是 svg 也不是 handler，只能是图形对象
+                myHand.clearHandlers();
+                myHand.addHandlersByObj(myHand.obj);
             }
-
         }
+
         // 重置 myHand
         myHand.obj = null;
         myHand.mousePressed = false;
         myHand.mousePressingMove = false;
-        myHand.modify = false;
+        myHand.capture = null;
+        myHand.mode = "";
     });
 
 
     document.addEventListener("keypress", (e) => {
-        if (e.ctrlKey && e.code === 'KeyZ') {
-            myHand.clearEdit();
+        if (e.code === "Space") {
+            myHand.type = myHand.type ? "" : "line";
+            return;
+        }
+        if (e.ctrlKey && e.code === "KeyZ") {
+            myHand.clearHandlers();
             if (e.shiftKey) {
                 myHand.undoRemoveNode();
             } else {
