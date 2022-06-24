@@ -120,7 +120,7 @@
         undo() {
             // console.log("撤销")
             if (this.currentNode) {
-                myHand.clearHandlers();
+                this.clearHandlers();
                 switch (this.currentNode.mode) {
                     case "create":
                         for (let obj of this.currentNode.captureEnd) {
@@ -161,7 +161,7 @@
                 }
             }
             if (this.currentNode) {
-                myHand.clearHandlers();
+                this.clearHandlers();
                 switch (this.currentNode.mode) {
                     case "create":
                         for (let obj of this.currentNode.captureEnd) {
@@ -210,11 +210,11 @@
             switch (obj.getAttribute("type")) {
                 case "line":
                     handlers = createHandlers(obj, 2);
-                    defaultHandler = handlers[obj.defaultIndex ? obj.defaultIndex : 1];
+                    defaultHandler = handlers[obj.defaultHandler ?? 1];
                     break;
                 case "rect":
                     handlers = createHandlers(obj, 8);
-                    defaultHandler = handlers[obj.defaultIndex ? obj.defaultIndex : 4];
+                    defaultHandler = handlers[obj.defaultHandler ?? 4];
                     break;
             }
             this.handlers.push(...handlers);
@@ -248,13 +248,14 @@
          * 重置 myHand 状态，一般用于鼠标点击之后
          */
         resetHand() {
+            this.mode = "";
             this.obj = null;
             this.mousePressed = false;
             this.mousePressingMove = false;
             this.capture = null;
         },
         updateHandlersByObj(obj) {
-            const handlers = myHand.handlers.filter((h) => h.sgParent === obj);
+            const handlers = this.handlers.filter((h) => h.sgParent === obj);
             switch (obj.getAttribute("type")) {
                 case "line":
                     handlers.forEach((h) => {
@@ -315,8 +316,21 @@
                     });
                     break;
             }
-
-
+        },
+        offsetObjTo(obj, offsetX, offsetY) {
+            switch (obj.getAttribute("type")) {
+                case "line":
+                    obj.setAttribute("x1", parseFloat(obj.getAttribute("x1")) + offsetX);
+                    obj.setAttribute("y1", parseFloat(obj.getAttribute("y1")) + offsetY);
+                    obj.setAttribute("x2", parseFloat(obj.getAttribute("x2")) + offsetX);
+                    obj.setAttribute("y2", parseFloat(obj.getAttribute("y2")) + offsetY);
+                    break;
+                case "rect":
+                    obj.setAttribute("x", parseFloat(obj.getAttribute("x")) + offsetX);
+                    obj.setAttribute("y", parseFloat(obj.getAttribute("y")) + offsetY);
+                    break;
+            }
+            this.updateHandlersByObj(obj);
         },
         moveObjTo(handler, x, y) {
             const obj = handler.sgParent;
@@ -403,14 +417,14 @@
                                     obj.setAttribute("y", oy + fHeight);
                                     break;
                             }
-                            myHand.obj = myHand.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectCornerMap[position]);
+                            this.obj = this.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectCornerMap[position]);
                         } else {
                             if (["0", "6", "7"].includes(position)) {
                                 obj.setAttribute("x", ox + oWidth);
                             } else if (["2", "3", "4"].includes(position)) {
                                 obj.setAttribute("x", ox + fWidth);
                             }
-                            myHand.obj = myHand.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectVMap[position]);
+                            this.obj = this.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectVMap[position]);
                         }
                     } else {
                         if (fHeight < 0) {
@@ -419,35 +433,24 @@
                             } else if (["4", "5", "6"].includes(position)) {
                                 obj.setAttribute("y", oy + fHeight);
                             }
-                            myHand.obj = myHand.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectHMap[position]);
+                            this.obj = this.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectHMap[position]);
                         }
                     }
                     break;
             }
-            myHand.updateHandlersByObj(obj);
-        },
-        offsetObjTo(obj, offsetX, offsetY) {
-            switch (obj.getAttribute("type")) {
-                case "line":
-                    obj.setAttribute("x1", parseFloat(obj.getAttribute("x1")) + offsetX);
-                    obj.setAttribute("y1", parseFloat(obj.getAttribute("y1")) + offsetY);
-                    obj.setAttribute("x2", parseFloat(obj.getAttribute("x2")) + offsetX);
-                    obj.setAttribute("y2", parseFloat(obj.getAttribute("y2")) + offsetY);
-                    break;
-                case "rect":
-                    obj.setAttribute("x", parseFloat(obj.getAttribute("x")) + offsetX);
-                    obj.setAttribute("y", parseFloat(obj.getAttribute("y")) + offsetY);
-                    break;
-            }
-            myHand.updateHandlersByObj(obj);
+            this.updateHandlersByObj(obj);
         }
+
 
     }
 
-    const rectCornerMap = {0: "4", 1: "5", 2: "6", 3: "7", 4: "0", 5: "1", 6: "2", 7: "3"}
-    const rectVMap = {0: "2", 7: "3", 6: "4", 2: "0", 3: "7", 4: "6"};
-    const rectHMap = {0: "6", 1: "5", 2: "4", 6: "0", 5: "1", 4: "2"};
 
+    /**
+     * 创建多个 handler
+     * @param sgParent
+     * @param number
+     * @returns {*[]}
+     */
     function createHandlers(sgParent, number) {
         const handlers = []
         for (let i = 0; i < number; i++) {
@@ -499,14 +502,29 @@
         return `UID${(new Date()).getTime()}`;
     }
 
+    /**
+     * 矩形点位映射
+     * @type {{"0": string, "1": string, "2": string, "3": string, "4": string, "5": string, "6": string, "7": string}}
+     */
+    const rectCornerMap = {0: "4", 1: "5", 2: "6", 3: "7", 4: "0", 5: "1", 6: "2", 7: "3"};
+    const rectVMap = {0: "2", 7: "3", 6: "4", 2: "0", 3: "7", 4: "6"};
+    const rectHMap = {0: "6", 1: "5", 2: "4", 6: "0", 5: "1", 4: "2"};
 
+    /**
+     * 矫正矩形
+     * @param x 预期原点 X 轴坐标
+     * @param y 预期原点 Y 轴坐标
+     * @param width 预期宽度（可以为负）
+     * @param height 预期高度（可以为负）
+     * @returns {{defaultHandler: (number), x: *, width: number, y: *, height: number}}
+     */
     function correctRect(x, y, width, height) {
         return {
             x: width < 0 ? x + width : x,
             y: height < 0 ? y + height : y,
             width: Math.abs(width),
             height: Math.abs(height),
-            defaultIndex: width < 0 && height < 0 ? 0 : width < 0 ? 6 : height < 0 ? 2 : 4
+            defaultHandler: width < 0 && height < 0 ? 0 : width < 0 ? 6 : height < 0 ? 2 : 4
         }
     }
 
@@ -545,8 +563,6 @@
                             }
                             break;
                         case "rect":
-
-
                             option = correctRect(myHand.startX, myHand.startY, e.offsetX - parseFloat(myHand.startX), e.offsetY - parseFloat(myHand.startY))
                             break;
                     }
@@ -626,10 +642,7 @@
                         myHand.undo();
                     }
                     return;
-
             }
-
-
         }
     })
 
