@@ -56,7 +56,7 @@
         /**
          * 当前鼠标类型，为空则表示选择模式
          */
-        type: "line",
+        type: "rect",
         /**
          * 当前操作的对象，一般为鼠标按钮点下时的 e.target
          */
@@ -193,7 +193,7 @@
          */
         isEditing(obj) {
             for (let i = 0; i < this.handlers.length; i++) {
-                if (this.handlers[i].parent === obj) {
+                if (this.handlers[i].sgParent === obj) {
                     return true;
                 }
             }
@@ -206,12 +206,20 @@
          */
         addHandlersByObj(obj) {
             let defaultHandler = null;
+            let handlers = null;
             switch (obj.getAttribute("type")) {
                 case "line":
-                    this.handlers.push(createHandler(obj, "x1", "y1"),
-                        defaultHandler = createHandler(obj, "x2", "y2"));
-                    return defaultHandler;
+                    handlers = createHandlers(obj, 2);
+                    defaultHandler = handlers[1];
+                    break;
+                case "rect":
+                    handlers = createHandlers(obj, 8);
+                    defaultHandler = handlers[4];
+                    break;
             }
+            this.handlers.push(...handlers);
+            this.updateHandlersByObj(obj);
+            return defaultHandler;
         },
         /**
          * 清空所有对象编辑状态
@@ -230,7 +238,7 @@
             // 当前编辑对象快照
             const captures = []
             if (this.handlers) {
-                new Set(this.handlers.map((h) => h.parent)).forEach((obj) => {
+                new Set(this.handlers.map((h) => h.sgParent)).forEach((obj) => {
                     captures.push(obj.cloneNode(true));
                 });
             }
@@ -244,51 +252,179 @@
             this.mousePressed = false;
             this.mousePressingMove = false;
             this.capture = null;
-            this.mode = "";
+        },
+        updateHandlersByObj(obj) {
+            const handlers = myHand.handlers.filter((h) => h.sgParent === obj);
+            switch (obj.getAttribute("type")) {
+                case "line":
+                    handlers.forEach((h) => {
+                        const position = h.getAttribute("handlerPosition");
+                        switch (position) {
+                            case "0":
+                                h.setAttribute("cx", obj.getAttribute("x1"));
+                                h.setAttribute("cy", obj.getAttribute("y1"));
+                                break;
+                            case "1":
+                                h.setAttribute("cx", obj.getAttribute("x2"));
+                                h.setAttribute("cy", obj.getAttribute("y2"));
+                                break;
+                        }
+                    });
+                    break;
+                case "rect":
+                    const ox = parseFloat(obj.getAttribute("x"));
+                    const oy = parseFloat(obj.getAttribute("y"));
+                    const oWidth = parseFloat(obj.getAttribute("width"));
+                    const oHeight = parseFloat(obj.getAttribute("height"));
+                    handlers.forEach((h) => {
+                        const position = h.getAttribute("handlerPosition");
+                        switch (position) {
+                            case "0":
+                                h.setAttribute("cx", ox);
+                                h.setAttribute("cy", oy);
+                                break;
+                            case "1":
+                                h.setAttribute("cx", ox + oWidth / 2);
+                                h.setAttribute("cy", oy);
+                                break;
+                            case "2":
+                                h.setAttribute("cx", ox + oWidth);
+                                h.setAttribute("cy", oy);
+                                break;
+                            case "3":
+                                h.setAttribute("cx", ox + oWidth);
+                                h.setAttribute("cy", oy + oHeight / 2);
+                                break;
+                            case "4":
+                                h.setAttribute("cx", ox + oWidth);
+                                h.setAttribute("cy", oy + oHeight);
+                                break;
+                            case "5":
+                                h.setAttribute("cx", ox + oWidth / 2);
+                                h.setAttribute("cy", oy + oHeight);
+                                break;
+                            case "6":
+                                h.setAttribute("cx", ox);
+                                h.setAttribute("cy", oy + oHeight);
+                                break;
+                            case "7":
+                                h.setAttribute("cx", ox);
+                                h.setAttribute("cy", oy + oHeight / 2);
+                                break;
+                        }
+                    });
+                    break;
+            }
+
+
+        },
+        moveObjTo(handler, x, y) {
+            const obj = handler.sgParent;
+            const position = handler.getAttribute("handlerPosition");
+            const cx = parseFloat(handler.getAttribute("cx"));
+            const cy = parseFloat(handler.getAttribute("cy"));
+            switch (obj.getAttribute("type")) {
+                case "line":
+                    switch (position) {
+                        case "0":
+                            obj.setAttribute("x1", x);
+                            obj.setAttribute("y1", y);
+                            break;
+                        case "1":
+                            obj.setAttribute("x2", x);
+                            obj.setAttribute("y2", y);
+                            break;
+                    }
+                    break;
+                case "rect":
+                    const ox = parseFloat(obj.getAttribute("x"));
+                    const oy = parseFloat(obj.getAttribute("y"));
+                    const oWidth = parseFloat(obj.getAttribute("width"));
+                    const oHeight = parseFloat(obj.getAttribute("height"));
+                    const offsetX = x - cx;
+                    const offsetY = y - cy;
+                    switch (position) {
+                        case "0":
+                            obj.setAttribute("x", x);
+                            obj.setAttribute("y", y);
+                            obj.setAttribute("width", oWidth - offsetX);
+                            obj.setAttribute("height", oHeight - offsetY);
+                            break;
+                        case "1":
+                            obj.setAttribute("y", y);
+                            obj.setAttribute("height", oHeight - offsetY);
+                            break;
+                        case "2":
+                            obj.setAttribute("y", y);
+                            obj.setAttribute("width", oWidth + offsetX);
+                            obj.setAttribute("height", oHeight - offsetY);
+                            break;
+                        case "3":
+                            obj.setAttribute("width", oWidth + offsetX);
+                            break;
+                        case "4":
+                            obj.setAttribute("width", oWidth + offsetX);
+                            obj.setAttribute("height", oHeight + offsetY);
+                            break;
+                        case "5":
+                            obj.setAttribute("height", oHeight + offsetY);
+                            break;
+                        case "6":
+                            obj.setAttribute("x", x);
+                            obj.setAttribute("width", oWidth - offsetX);
+                            obj.setAttribute("height", oHeight + offsetY);
+                            break;
+                        case "7":
+                            obj.setAttribute("x", x);
+                            obj.setAttribute("width", oWidth - offsetX);
+                            break;
+
+
+                    }
+            }
+            myHand.updateHandlersByObj(obj);
+        },
+        offsetObjTo(obj, offsetX, offsetY) {
+            switch (obj.getAttribute("type")) {
+                case "line":
+                    obj.setAttribute("x1", parseFloat(obj.getAttribute("x1")) + offsetX);
+                    obj.setAttribute("y1", parseFloat(obj.getAttribute("y1")) + offsetY);
+                    obj.setAttribute("x2", parseFloat(obj.getAttribute("x2")) + offsetX);
+                    obj.setAttribute("y2", parseFloat(obj.getAttribute("y2")) + offsetY);
+                    break;
+                case "rect":
+                    obj.setAttribute("x", parseFloat(obj.getAttribute("x")) + offsetX);
+                    obj.setAttribute("y", parseFloat(obj.getAttribute("y")) + offsetY);
+                    break;
+            }
+            myHand.updateHandlersByObj(obj);
         }
 
+    }
+
+
+    function createHandlers(sgParent, number) {
+        const handlers = []
+        for (let i = 0; i < number; i++) {
+            handlers.push(createHandler(sgParent, i));
+        }
+        return handlers;
     }
 
     /**
      * 创建“把手”
      */
-    function createHandler(parent, xBindTo, yBindTo) {
+    function createHandler(sgParent, position) {
         const handler = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        handler.setAttribute("xBindTo", xBindTo);
-        handler.setAttribute("yBindTo", yBindTo);
-        handler.setAttribute("cx", parent.getAttribute(xBindTo));
-        handler.setAttribute("cy", parent.getAttribute(yBindTo));
+        handler.setAttribute("cx", 0);
+        handler.setAttribute("cy", 0);
         handler.setAttribute("stroke", "black");
         handler.setAttribute("r", "3");
         handler.setAttribute("fill", "white");
+        handler.setAttribute("handlerPosition", position);
         handler.classList.add("handler");
-        handler.parent = parent;
+        handler.sgParent = sgParent;
         mySvg.appendChild(handler);
-        /**
-         * 将当前把手移动到指定地点，顺带移动绑定的图形对象
-         * @param x
-         * @param y
-         */
-        handler.moveTo = function (x, y) {
-            this.setAttribute("cx", x);
-            this.setAttribute("cy", y);
-            this.parent.setAttribute(this.getAttribute("xBindTo"), x);
-            this.parent.setAttribute(this.getAttribute("yBindTo"), y);
-        };
-        /**
-         * 使用偏移量移动把手，顺带移动绑定的图形对象
-         * @param offsetX
-         * @param offsetY
-         */
-        handler.moveByOffset = function (offsetX, offsetY) {
-            const x = parseInt(this.getAttribute("cx")) + offsetX;
-            const y = parseInt(this.getAttribute("cy")) + offsetY;
-            this.setAttribute("cx", x);
-            this.setAttribute("cy", y);
-            this.parent.setAttribute(this.getAttribute("xBindTo"), x);
-            this.parent.setAttribute(this.getAttribute("yBindTo"), y);
-        }
-
         return handler;
     }
 
@@ -321,7 +457,7 @@
     mySvg.addEventListener("mousedown", (e) => {
         // 监听鼠标按下事件，设置 myHand
         myHand.mousePressed = true;
-        myHand.mousePressingMove = false;
+        // myHand.mousePressingMove = false;
         myHand.startX = e.offsetX;
         myHand.startY = e.offsetY;
 
@@ -332,23 +468,38 @@
             // 只处理按下移动事件
             myHand.mousePressingMove = true;
 
-            if (myHand.obj.classList.contains("handler")) {
+            if (myHand.obj?.classList.contains("handler")) {
                 if (!myHand.mode) {
                     // 把当前选中的对象，创建快照
                     myHand.capture = myHand.takeCapture();
                     myHand.mode = "modify";
                 }
-                myHand.obj.moveTo(e.offsetX, e.offsetY)
+                myHand.moveObjTo(myHand.obj, e.offsetX, e.offsetY)
             } else {
                 if (myHand.type) {
                     myHand.clearHandlers();
-                    const drawObj = createObjectBy(myHand.type, {
-                        x1: myHand.startX,
-                        y1: myHand.startY,
-                        x2: e.offsetX,
-                        y2: e.offsetY,
-                        type: myHand.type
-                    });
+                    let option = null;
+                    switch (myHand.type) {
+                        case "line":
+                            option = {
+                                x1: myHand.startX,
+                                y1: myHand.startY,
+                                x2: e.offsetX,
+                                y2: e.offsetY,
+                                type: myHand.type
+                            }
+                            break;
+                        case "rect":
+                            option = {
+                                x: myHand.startX,
+                                y: myHand.startY,
+                                width: e.offsetX - parseFloat(myHand.startX),
+                                height: e.offsetY - parseFloat(myHand.startY),
+                                type: myHand.type
+                            }
+                            break;
+                    }
+                    const drawObj = createObjectBy(myHand.type, option);
                     mySvg.appendChild(drawObj);
                     myHand.mode = "create";
                     myHand.obj = myHand.addHandlersByObj(drawObj);
@@ -365,10 +516,7 @@
                             myHand.capture = myHand.takeCapture();
                             myHand.mode = "modify";
                         }
-
-                        for (let i = 0; i < myHand.handlers.length; i++) {
-                            myHand.handlers[i].moveByOffset(e.offsetX - myHand.startX, e.offsetY - myHand.startY);
-                        }
+                        myHand.offsetObjTo(myHand.obj, e.offsetX - myHand.startX, e.offsetY - myHand.startY)
                         myHand.startX = e.offsetX;
                         myHand.startY = e.offsetY;
                     }
@@ -405,21 +553,32 @@
     });
 
 
+    const type = ["line", "rect", ""];
+    let index = 0;
+
     /**
      * 响应键盘事件
      */
     document.addEventListener("keypress", (e) => {
         if (e.code === "Space") {
-            myHand.type = myHand.type ? "" : "line";
+            myHand.type = type[index++ % type.length];
+            console.log(myHand.type)
             return;
         }
-        if (e.ctrlKey && e.code === "KeyZ") {
-            myHand.clearHandlers();
-            if (e.shiftKey) {
-                myHand.undoRemoveNode();
-            } else {
-                myHand.undo();
+        if (e.ctrlKey) {
+            switch (e.code) {
+                case "KeyZ":
+                    myHand.clearHandlers();
+                    if (e.shiftKey) {
+                        myHand.undoRemoveNode();
+                    } else {
+                        myHand.undo();
+                    }
+                    return;
+
             }
+
+
         }
     })
 
