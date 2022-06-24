@@ -28,6 +28,60 @@ class SgItemNode {
 class SgVditor {
 
     /**
+     * 记录当前活动
+     */
+    mySvg = null;
+    // create / delete / modify
+    mode = "";
+    /**
+     * 当前鼠标类型，为空则表示选择模式
+     */
+    type = "line";
+    /**
+     * 当前操作的对象，一般为鼠标按钮点下时的 e.target
+     */
+    obj = null;
+    /**
+     * 现有把手，用于维护编辑状态的所有对象
+     */
+    handlers = [];
+    /**
+     * 用于记录 x 轴坐标
+     * 绘图时：用作记录原点
+     * 拖动时：可以复用为上一次移动的点
+     */
+    startX = 0;
+    /**
+     * 用于记录 y 轴坐标
+     * 绘图时：用作记录原点
+     * 拖动时：可以复用为上一次移动的点
+     */
+    startY = 0;
+
+    /**
+     * 记录鼠标按下状态
+     */
+    mousePressed = false;
+    /**
+     * 记录鼠标按下后，是否移动过，单次按压有效
+     */
+    mousePressingMove = false;
+    /**
+     * 操作栈
+     * 对象指向头节点
+     */
+    nodeLinkList = null;
+    /**
+     * 当前操作节点
+     */
+    currentNode = null;
+    /**
+     * 临时快照
+     */
+    capture = null;
+
+
+    /**
      * 将 Node 添加到操作栈中
      */
     addNodeToLinkList(newCurrent) {
@@ -42,390 +96,341 @@ class SgVditor {
     }
 
     /**
-     * 记录当前活动
+     * 撤销
      */
-    myHand = {
-        mySvg: null,
-        // create / delete / modify
-        mode: "",
-        /**
-         * 当前鼠标类型，为空则表示选择模式
-         */
-        type: "rect",
-        /**
-         * 当前操作的对象，一般为鼠标按钮点下时的 e.target
-         */
-        obj: null,
-        /**
-         * 现有把手，用于维护编辑状态的所有对象
-         */
-        handlers: [],
-        /**
-         * 用于记录 x 轴坐标
-         * 绘图时：用作记录原点
-         * 拖动时：可以复用为上一次移动的点
-         */
-        startX: 0,
-        /**
-         * 用于记录 y 轴坐标
-         * 绘图时：用作记录原点
-         * 拖动时：可以复用为上一次移动的点
-         */
-        startY: 0,
-
-        /**
-         * 记录鼠标按下状态
-         */
-        mousePressed: false,
-        /**
-         * 记录鼠标按下后，是否移动过，单次按压有效
-         */
-        mousePressingMove: false,
-        /**
-         * 操作栈
-         * 对象指向头节点
-         */
-        nodeLinkList: null,
-        /**
-         * 当前操作节点
-         */
-        currentNode: null,
-        /**
-         * 临时快照
-         */
-        capture: null,
-
-
-
-        /**
-         * 撤销
-         */
-        undo() {
-            // console.log("撤销")
-            if (this.currentNode) {
-                this.clearHandlers();
-                switch (this.currentNode.mode) {
-                    case "create":
-                        for (let obj of this.currentNode.captureEnd) {
-                            mySvg.removeChild(mySvg.querySelector(`#${obj.getAttribute("id")}`));
-                        }
-                        break;
-                    case "delete":
-                        for (let obj of this.currentNode.capture) {
-                            mySvg.appendChild(obj);
-                        }
-                        break;
-                    case "modify":
-                        for (let obj of this.currentNode.captureEnd) {
-                            mySvg.removeChild(mySvg.querySelector(`#${obj.getAttribute("id")}`));
-                        }
-                        for (let obj of this.currentNode.capture) {
-                            mySvg.appendChild(obj);
-                        }
-                        break;
-                    default:
-                }
-                this.currentNode = this.currentNode.prevNode;
-            }
-        },
-        /**
-         * 反撤销
-         */
-        undoRemoveNode() {
-            if (this.currentNode) {
-                if (this.currentNode.nextNode) {
-                    this.currentNode = this.currentNode.nextNode;
-                } else {
-                    return;
-                }
-            } else {
-                if (this.nodeLinkList) {
-                    this.currentNode = this.nodeLinkList;
-                }
-            }
-            if (this.currentNode) {
-                this.clearHandlers();
-                switch (this.currentNode.mode) {
-                    case "create":
-                        for (let obj of this.currentNode.captureEnd) {
-                            mySvg.appendChild(obj);
-                        }
-                        break;
-                    case "delete":
-                        for (let obj of this.currentNode.capture) {
-                            mySvg.removeChild(mySvg.querySelector(`#${obj.getAttribute("id")}`));
-                        }
-                        break;
-                    case "modify":
-                        for (let obj of this.currentNode.capture) {
-                            mySvg.removeChild(mySvg.querySelector(`#${obj.getAttribute("id")}`));
-                        }
-                        for (let obj of this.currentNode.captureEnd) {
-                            mySvg.appendChild(obj);
-                        }
-
-                        break;
-                    default:
-                }
-            }
-        },
-        /**
-         * 判断当前对象是否处于编辑状态
-         * @param obj
-         * @returns {boolean}
-         */
-        isEditing(obj) {
-            for (let i = 0; i < this.handlers.length; i++) {
-                if (this.handlers[i].sgParent === obj) {
-                    return true;
-                }
-            }
-            return false;
-        },
-        /**
-         * 为当前对象添加把手
-         * @param obj
-         * @returns {SVGCircleElement}
-         */
-        addHandlersByObj(obj) {
-            let defaultHandler = null;
-            let handlers = null;
-            switch (obj.getAttribute("type")) {
-                case "line":
-                    handlers = createHandlers(this.mySvg, obj, 2);
-                    defaultHandler = handlers[obj.defaultHandler ?? 1];
-                    break;
-                case "rect":
-                    handlers = createHandlers(this.mySvg, obj, 8);
-                    defaultHandler = handlers[obj.defaultHandler ?? 4];
-                    break;
-            }
-            this.handlers.push(...handlers);
-            this.updateHandlersByObj(obj);
-            return defaultHandler;
-        },
-        /**
-         * 清空所有对象编辑状态
-         */
-        clearHandlers() {
-            if (this.handlers) {
-                this.handlers.forEach(h => mySvg.removeChild(h));
-                this.handlers.splice(0);
-            }
-        },
-        /**
-         * 以当前把手所指对象创建快照
-         * @returns {*[]}
-         */
-        takeCapture() {
-            // 当前编辑对象快照
-            const captures = []
-            if (this.handlers) {
-                new Set(this.handlers.map((h) => h.sgParent)).forEach((obj) => {
-                    captures.push(obj.cloneNode(true));
-                });
-            }
-            return captures;
-        },
-        /**
-         * 重置 this.myHand 状态，一般用于鼠标点击之后
-         */
-        resetHand() {
-            this.mode = "";
-            this.obj = null;
-            this.mousePressed = false;
-            this.mousePressingMove = false;
-            this.capture = null;
-        },
-        updateHandlersByObj(obj) {
-            const handlers = this.handlers.filter((h) => h.sgParent === obj);
-            switch (obj.getAttribute("type")) {
-                case "line":
-                    handlers.forEach((h) => {
-                        const position = h.getAttribute("handlerPosition");
-                        switch (position) {
-                            case "0":
-                                h.setAttribute("cx", obj.getAttribute("x1"));
-                                h.setAttribute("cy", obj.getAttribute("y1"));
-                                break;
-                            case "1":
-                                h.setAttribute("cx", obj.getAttribute("x2"));
-                                h.setAttribute("cy", obj.getAttribute("y2"));
-                                break;
-                        }
-                    });
-                    break;
-                case "rect":
-                    const ox = parseFloat(obj.getAttribute("x"));
-                    const oy = parseFloat(obj.getAttribute("y"));
-                    const oWidth = parseFloat(obj.getAttribute("width"));
-                    const oHeight = parseFloat(obj.getAttribute("height"));
-                    handlers.forEach((h) => {
-                        const position = h.getAttribute("handlerPosition");
-                        switch (position) {
-                            case "0":
-                                h.setAttribute("cx", ox);
-                                h.setAttribute("cy", oy);
-                                break;
-                            case "1":
-                                h.setAttribute("cx", ox + oWidth / 2);
-                                h.setAttribute("cy", oy);
-                                break;
-                            case "2":
-                                h.setAttribute("cx", ox + oWidth);
-                                h.setAttribute("cy", oy);
-                                break;
-                            case "3":
-                                h.setAttribute("cx", ox + oWidth);
-                                h.setAttribute("cy", oy + oHeight / 2);
-                                break;
-                            case "4":
-                                h.setAttribute("cx", ox + oWidth);
-                                h.setAttribute("cy", oy + oHeight);
-                                break;
-                            case "5":
-                                h.setAttribute("cx", ox + oWidth / 2);
-                                h.setAttribute("cy", oy + oHeight);
-                                break;
-                            case "6":
-                                h.setAttribute("cx", ox);
-                                h.setAttribute("cy", oy + oHeight);
-                                break;
-                            case "7":
-                                h.setAttribute("cx", ox);
-                                h.setAttribute("cy", oy + oHeight / 2);
-                                break;
-                        }
-                    });
-                    break;
-            }
-        },
-        offsetObjTo(obj, offsetX, offsetY) {
-            switch (obj.getAttribute("type")) {
-                case "line":
-                    obj.setAttribute("x1", parseFloat(obj.getAttribute("x1")) + offsetX);
-                    obj.setAttribute("y1", parseFloat(obj.getAttribute("y1")) + offsetY);
-                    obj.setAttribute("x2", parseFloat(obj.getAttribute("x2")) + offsetX);
-                    obj.setAttribute("y2", parseFloat(obj.getAttribute("y2")) + offsetY);
-                    break;
-                case "rect":
-                    obj.setAttribute("x", parseFloat(obj.getAttribute("x")) + offsetX);
-                    obj.setAttribute("y", parseFloat(obj.getAttribute("y")) + offsetY);
-                    break;
-            }
-            this.updateHandlersByObj(obj);
-        },
-        moveObjTo(handler, x, y) {
-            const obj = handler.sgParent;
-            const position = handler.getAttribute("handlerPosition");
-            const cx = parseFloat(handler.getAttribute("cx"));
-            const cy = parseFloat(handler.getAttribute("cy"));
-            switch (obj.getAttribute("type")) {
-                case "line":
-                    switch (position) {
-                        case "0":
-                            obj.setAttribute("x1", x);
-                            obj.setAttribute("y1", y);
-                            break;
-                        case "1":
-                            obj.setAttribute("x2", x);
-                            obj.setAttribute("y2", y);
-                            break;
+    undo() {
+        // console.log("撤销")
+        if (this.currentNode) {
+            this.clearHandlers();
+            switch (this.currentNode.mode) {
+                case "create":
+                    for (let obj of this.currentNode.captureEnd) {
+                        this.mySvg.removeChild(this.mySvg.querySelector(`#${obj.getAttribute("id")}`));
                     }
                     break;
-                case "rect":
-                    const ox = parseFloat(obj.getAttribute("x"));
-                    const oy = parseFloat(obj.getAttribute("y"));
-                    const oWidth = parseFloat(obj.getAttribute("width"));
-                    const oHeight = parseFloat(obj.getAttribute("height"));
-                    const offsetX = x - cx;
-                    const offsetY = y - cy;
-                    let fWidth = oWidth;
-                    let fHeight = oHeight;
+                case "delete":
+                    for (let obj of this.currentNode.capture) {
+                        this.mySvg.appendChild(obj);
+                    }
+                    break;
+                case "modify":
+                    for (let obj of this.currentNode.captureEnd) {
+                        this.mySvg.removeChild(this.mySvg.querySelector(`#${obj.getAttribute("id")}`));
+                    }
+                    for (let obj of this.currentNode.capture) {
+                        this.mySvg.appendChild(obj);
+                    }
+                    break;
+                default:
+            }
+            this.currentNode = this.currentNode.prevNode;
+        }
+    }
+
+    /**
+     * 反撤销
+     */
+    undoRemoveNode() {
+        if (this.currentNode) {
+            if (this.currentNode.nextNode) {
+                this.currentNode = this.currentNode.nextNode;
+            } else {
+                return;
+            }
+        } else {
+            if (this.nodeLinkList) {
+                this.currentNode = this.nodeLinkList;
+            }
+        }
+        if (this.currentNode) {
+            this.clearHandlers();
+            switch (this.currentNode.mode) {
+                case "create":
+                    for (let obj of this.currentNode.captureEnd) {
+                        this.mySvg.appendChild(obj);
+                    }
+                    break;
+                case "delete":
+                    for (let obj of this.currentNode.capture) {
+                        this.mySvg.removeChild(this.mySvg.querySelector(`#${obj.getAttribute("id")}`));
+                    }
+                    break;
+                case "modify":
+                    for (let obj of this.currentNode.capture) {
+                        this.mySvg.removeChild(this.mySvg.querySelector(`#${obj.getAttribute("id")}`));
+                    }
+                    for (let obj of this.currentNode.captureEnd) {
+                        this.mySvg.appendChild(obj);
+                    }
+
+                    break;
+                default:
+            }
+        }
+    }
+
+    /**
+     * 判断当前对象是否处于编辑状态
+     * @param obj
+     * @returns {boolean}
+     */
+    isEditing(obj) {
+        for (let i = 0; i < this.handlers.length; i++) {
+            if (this.handlers[i].sgParent === obj) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 为当前对象添加把手
+     * @param obj
+     * @returns {SVGCircleElement}
+     */
+    addHandlersByObj(obj) {
+        let defaultHandler = null;
+        let handlers = null;
+        switch (obj.getAttribute("type")) {
+            case "line":
+                handlers = createHandlers(this.mySvg, obj, 2);
+                defaultHandler = handlers[obj.defaultHandler ?? 1];
+                break;
+            case "rect":
+                handlers = createHandlers(this.mySvg, obj, 8);
+                defaultHandler = handlers[obj.defaultHandler ?? 4];
+                break;
+        }
+        this.handlers.push(...handlers);
+        this.updateHandlersByObj(obj);
+        return defaultHandler;
+    }
+
+    /**
+     * 清空所有对象编辑状态
+     */
+    clearHandlers() {
+        if (this.handlers) {
+            this.handlers.forEach(h => this.mySvg.removeChild(h));
+            this.handlers.splice(0);
+        }
+    }
+
+    /**
+     * 以当前把手所指对象创建快照
+     * @returns {*[]}
+     */
+    takeCapture() {
+        // 当前编辑对象快照
+        const captures = []
+        if (this.handlers) {
+            new Set(this.handlers.map((h) => h.sgParent)).forEach((obj) => {
+                captures.push(obj.cloneNode(true));
+            });
+        }
+        return captures;
+    }
+
+    /**
+     * 重置 this.myHand 状态，一般用于鼠标点击之后
+     */
+    resetHand() {
+        this.mode = "";
+        this.obj = null;
+        this.mousePressed = false;
+        this.mousePressingMove = false;
+        this.capture = null;
+    }
+
+    updateHandlersByObj(obj) {
+        const handlers = this.handlers.filter((h) => h.sgParent === obj);
+        switch (obj.getAttribute("type")) {
+            case "line":
+                handlers.forEach((h) => {
+                    const position = h.getAttribute("handlerPosition");
                     switch (position) {
                         case "0":
-                            fWidth = oWidth - offsetX;
-                            fHeight = oHeight - offsetY;
-                            obj.setAttribute("x", x);
-                            obj.setAttribute("y", y);
+                            h.setAttribute("cx", obj.getAttribute("x1"));
+                            h.setAttribute("cy", obj.getAttribute("y1"));
                             break;
                         case "1":
-                            fHeight = oHeight - offsetY;
-                            obj.setAttribute("y", y);
+                            h.setAttribute("cx", obj.getAttribute("x2"));
+                            h.setAttribute("cy", obj.getAttribute("y2"));
+                            break;
+                    }
+                });
+                break;
+            case "rect":
+                const ox = parseFloat(obj.getAttribute("x"));
+                const oy = parseFloat(obj.getAttribute("y"));
+                const oWidth = parseFloat(obj.getAttribute("width"));
+                const oHeight = parseFloat(obj.getAttribute("height"));
+                handlers.forEach((h) => {
+                    const position = h.getAttribute("handlerPosition");
+                    switch (position) {
+                        case "0":
+                            h.setAttribute("cx", ox);
+                            h.setAttribute("cy", oy);
+                            break;
+                        case "1":
+                            h.setAttribute("cx", ox + oWidth / 2);
+                            h.setAttribute("cy", oy);
                             break;
                         case "2":
-                            fWidth = oWidth + offsetX;
-                            fHeight = oHeight - offsetY;
-                            obj.setAttribute("y", y);
+                            h.setAttribute("cx", ox + oWidth);
+                            h.setAttribute("cy", oy);
                             break;
                         case "3":
-                            fWidth = oWidth + offsetX;
+                            h.setAttribute("cx", ox + oWidth);
+                            h.setAttribute("cy", oy + oHeight / 2);
                             break;
                         case "4":
-                            fWidth = oWidth + offsetX;
-                            fHeight = oHeight + offsetY;
+                            h.setAttribute("cx", ox + oWidth);
+                            h.setAttribute("cy", oy + oHeight);
                             break;
                         case "5":
-                            fHeight = oHeight + offsetY;
+                            h.setAttribute("cx", ox + oWidth / 2);
+                            h.setAttribute("cy", oy + oHeight);
                             break;
                         case "6":
-                            fWidth = oWidth - offsetX;
-                            fHeight = oHeight + offsetY;
-                            obj.setAttribute("x", x);
+                            h.setAttribute("cx", ox);
+                            h.setAttribute("cy", oy + oHeight);
                             break;
                         case "7":
-                            fWidth = oWidth - offsetX;
-                            obj.setAttribute("x", x);
+                            h.setAttribute("cx", ox);
+                            h.setAttribute("cy", oy + oHeight / 2);
                             break;
                     }
-                    obj.setAttribute("width", Math.abs(fWidth));
-                    obj.setAttribute("height", Math.abs(fHeight));
-                    if (fWidth < 0) {
-                        if (fHeight < 0) {
-                            switch (position) {
-                                case "0":
-                                    obj.setAttribute("x", ox + oWidth);
-                                    obj.setAttribute("y", oy + oHeight);
-                                    break;
-                                case "2":
-                                    obj.setAttribute("x", ox + fWidth);
-                                    obj.setAttribute("y", oy + oHeight);
-                                    break;
-                                case "4":
-                                    obj.setAttribute("x", ox + fWidth);
-                                    obj.setAttribute("y", oy + fHeight);
-                                    break;
-                                case "6":
-                                    obj.setAttribute("x", ox + oWidth);
-                                    obj.setAttribute("y", oy + fHeight);
-                                    break;
-                            }
-                            this.obj = this.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectCornerMap[position]);
-                        } else {
-                            if (["0", "6", "7"].includes(position)) {
-                                obj.setAttribute("x", ox + oWidth);
-                            } else if (["2", "3", "4"].includes(position)) {
-                                obj.setAttribute("x", ox + fWidth);
-                            }
-                            this.obj = this.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectVMap[position]);
-                        }
-                    } else {
-                        if (fHeight < 0) {
-                            if (["0", "1", "2"].includes(position)) {
-                                obj.setAttribute("y", oy + oHeight);
-                            } else if (["4", "5", "6"].includes(position)) {
-                                obj.setAttribute("y", oy + fHeight);
-                            }
-                            this.obj = this.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectHMap[position]);
-                        }
-                    }
-                    break;
-            }
-            this.updateHandlersByObj(obj);
+                });
+                break;
         }
-
-
     }
+
+    offsetObjTo(obj, offsetX, offsetY) {
+        switch (obj.getAttribute("type")) {
+            case "line":
+                obj.setAttribute("x1", parseFloat(obj.getAttribute("x1")) + offsetX);
+                obj.setAttribute("y1", parseFloat(obj.getAttribute("y1")) + offsetY);
+                obj.setAttribute("x2", parseFloat(obj.getAttribute("x2")) + offsetX);
+                obj.setAttribute("y2", parseFloat(obj.getAttribute("y2")) + offsetY);
+                break;
+            case "rect":
+                obj.setAttribute("x", parseFloat(obj.getAttribute("x")) + offsetX);
+                obj.setAttribute("y", parseFloat(obj.getAttribute("y")) + offsetY);
+                break;
+        }
+        this.updateHandlersByObj(obj);
+    }
+
+    moveObjTo(handler, x, y) {
+        const obj = handler.sgParent;
+        const position = handler.getAttribute("handlerPosition");
+        const cx = parseFloat(handler.getAttribute("cx"));
+        const cy = parseFloat(handler.getAttribute("cy"));
+        switch (obj.getAttribute("type")) {
+            case "line":
+                switch (position) {
+                    case "0":
+                        obj.setAttribute("x1", x);
+                        obj.setAttribute("y1", y);
+                        break;
+                    case "1":
+                        obj.setAttribute("x2", x);
+                        obj.setAttribute("y2", y);
+                        break;
+                }
+                break;
+            case "rect":
+                const ox = parseFloat(obj.getAttribute("x"));
+                const oy = parseFloat(obj.getAttribute("y"));
+                const oWidth = parseFloat(obj.getAttribute("width"));
+                const oHeight = parseFloat(obj.getAttribute("height"));
+                const offsetX = x - cx;
+                const offsetY = y - cy;
+                let fWidth = oWidth;
+                let fHeight = oHeight;
+                switch (position) {
+                    case "0":
+                        fWidth = oWidth - offsetX;
+                        fHeight = oHeight - offsetY;
+                        obj.setAttribute("x", x);
+                        obj.setAttribute("y", y);
+                        break;
+                    case "1":
+                        fHeight = oHeight - offsetY;
+                        obj.setAttribute("y", y);
+                        break;
+                    case "2":
+                        fWidth = oWidth + offsetX;
+                        fHeight = oHeight - offsetY;
+                        obj.setAttribute("y", y);
+                        break;
+                    case "3":
+                        fWidth = oWidth + offsetX;
+                        break;
+                    case "4":
+                        fWidth = oWidth + offsetX;
+                        fHeight = oHeight + offsetY;
+                        break;
+                    case "5":
+                        fHeight = oHeight + offsetY;
+                        break;
+                    case "6":
+                        fWidth = oWidth - offsetX;
+                        fHeight = oHeight + offsetY;
+                        obj.setAttribute("x", x);
+                        break;
+                    case "7":
+                        fWidth = oWidth - offsetX;
+                        obj.setAttribute("x", x);
+                        break;
+                }
+                obj.setAttribute("width", Math.abs(fWidth));
+                obj.setAttribute("height", Math.abs(fHeight));
+                if (fWidth < 0) {
+                    if (fHeight < 0) {
+                        switch (position) {
+                            case "0":
+                                obj.setAttribute("x", ox + oWidth);
+                                obj.setAttribute("y", oy + oHeight);
+                                break;
+                            case "2":
+                                obj.setAttribute("x", ox + fWidth);
+                                obj.setAttribute("y", oy + oHeight);
+                                break;
+                            case "4":
+                                obj.setAttribute("x", ox + fWidth);
+                                obj.setAttribute("y", oy + fHeight);
+                                break;
+                            case "6":
+                                obj.setAttribute("x", ox + oWidth);
+                                obj.setAttribute("y", oy + fHeight);
+                                break;
+                        }
+                        this.obj = this.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectCornerMap[position]);
+                    } else {
+                        if (["0", "6", "7"].includes(position)) {
+                            obj.setAttribute("x", ox + oWidth);
+                        } else if (["2", "3", "4"].includes(position)) {
+                            obj.setAttribute("x", ox + fWidth);
+                        }
+                        this.obj = this.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectVMap[position]);
+                    }
+                } else {
+                    if (fHeight < 0) {
+                        if (["0", "1", "2"].includes(position)) {
+                            obj.setAttribute("y", oy + oHeight);
+                        } else if (["4", "5", "6"].includes(position)) {
+                            obj.setAttribute("y", oy + fHeight);
+                        }
+                        this.obj = this.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectHMap[position]);
+                    }
+                }
+                break;
+        }
+        this.updateHandlersByObj(obj);
+    }
+
 
     constructor({svg}) {
         let node = null;
@@ -439,62 +444,62 @@ class SgVditor {
             this.mySvg = node;
             this.mySvg.addEventListener("mousedown", (e) => {
                 // 监听鼠标按下事件，设置 this.myHand
-                this.myHand.mousePressed = true;
-                // this.myHand.mousePressingMove = false;
-                this.myHand.startX = e.offsetX;
-                this.myHand.startY = e.offsetY;
+                this.mousePressed = true;
+                // this.mousePressingMove = false;
+                this.startX = e.offsetX;
+                this.startY = e.offsetY;
 
-                this.myHand.obj = e.target;
+                this.obj = e.target;
             });
             this.mySvg.addEventListener("mousemove", (e) => {
-                if (this.myHand.mousePressed) {
+                if (this.mousePressed) {
                     // 只处理按下移动事件
-                    this.myHand.mousePressingMove = true;
+                    this.mousePressingMove = true;
 
-                    if (this.myHand.obj?.classList.contains("handler")) {
-                        if (!this.myHand.mode) {
+                    if (this.obj?.classList.contains("handler")) {
+                        if (!this.mode) {
                             // 把当前选中的对象，创建快照
-                            this.myHand.capture = this.myHand.takeCapture();
-                            this.myHand.mode = "modify";
+                            this.capture = this.takeCapture();
+                            this.mode = "modify";
                         }
-                        this.myHand.moveObjTo(this.myHand.obj, e.offsetX, e.offsetY)
+                        this.moveObjTo(this.obj, e.offsetX, e.offsetY)
                     } else {
-                        if (this.myHand.type) {
-                            this.myHand.clearHandlers();
+                        if (this.type) {
+                            this.clearHandlers();
                             let option = null;
-                            switch (this.myHand.type) {
+                            switch (this.type) {
                                 case "line":
                                     option = {
-                                        x1: this.myHand.startX,
-                                        y1: this.myHand.startY,
+                                        x1: this.startX,
+                                        y1: this.startY,
                                         x2: e.offsetX,
                                         y2: e.offsetY,
                                     }
                                     break;
                                 case "rect":
-                                    option = correctRect(this.myHand.startX, this.myHand.startY, e.offsetX - parseFloat(this.myHand.startX), e.offsetY - parseFloat(this.myHand.startY))
+                                    option = correctRect(this.startX, this.startY, e.offsetX - parseFloat(this.startX), e.offsetY - parseFloat(this.startY))
                                     break;
                             }
-                            const drawObj = createObjectBy(this.myHand.type, option);
-                            mySvg.appendChild(drawObj);
-                            this.myHand.mode = "create";
-                            this.myHand.obj = this.myHand.addHandlersByObj(drawObj);
+                            const drawObj = createObjectBy(this.type, option);
+                            this.mySvg.appendChild(drawObj);
+                            this.mode = "create";
+                            this.obj = this.addHandlersByObj(drawObj);
                         } else {
-                            if (this.myHand.obj === mySvg) {
+                            if (this.obj === this.mySvg) {
                                 // todo 绘制选区
                             } else {
-                                if (!this.myHand.isEditing(this.myHand.obj)) {
-                                    this.myHand.clearHandlers();
-                                    this.myHand.addHandlersByObj(this.myHand.obj);
+                                if (!this.isEditing(this.obj)) {
+                                    this.clearHandlers();
+                                    this.addHandlersByObj(this.obj);
                                 }
-                                if (this.myHand.mode !== "modify") {
+                                if (this.mode !== "modify") {
                                     // 把当前选中的对象，创建快照
-                                    this.myHand.capture = this.myHand.takeCapture();
-                                    this.myHand.mode = "modify";
+                                    this.capture = this.takeCapture();
+                                    this.mode = "modify";
                                 }
-                                this.myHand.offsetObjTo(this.myHand.obj, e.offsetX - this.myHand.startX, e.offsetY - this.myHand.startY)
-                                this.myHand.startX = e.offsetX;
-                                this.myHand.startY = e.offsetY;
+                                this.offsetObjTo(this.obj, e.offsetX - this.startX, e.offsetY - this.startY)
+                                this.startX = e.offsetX;
+                                this.startY = e.offsetY;
                             }
                         }
 
@@ -502,30 +507,30 @@ class SgVditor {
                 }
             });
             this.mySvg.addEventListener("mouseup", (e) => {
-                if (this.myHand.mousePressingMove) {
-                    if (this.myHand.obj === mySvg) {
+                if (this.mousePressingMove) {
+                    if (this.obj === this.mySvg) {
                         // todo 设置选取内的图形为唯一选中
                     } else {
-                        const captureEnd = this.myHand.takeCapture();
+                        const captureEnd = this.takeCapture();
                         let sgNode = new SgItemNode(captureEnd);
-                        sgNode.mode = this.myHand.mode;
-                        sgNode.capture = this.myHand.capture;
-                        this.myHand.addNodeToLinkList(sgNode);
+                        sgNode.mode = this.mode;
+                        sgNode.capture = this.capture;
+                        this.addNodeToLinkList(sgNode);
                     }
                 } else {
-                    if (this.myHand.obj === mySvg) {
-                        this.myHand.clearHandlers();
+                    if (this.obj === this.mySvg) {
+                        this.clearHandlers();
                     }
                     // 点击事件
-                    if (this.myHand.obj !== mySvg && !this.myHand.obj.classList.contains("handler")) {
+                    if (this.obj !== this.mySvg && !this.obj.classList.contains("handler")) {
                         // 既不是 svg 也不是 handler，只能是图形对象
-                        this.myHand.clearHandlers();
-                        this.myHand.addHandlersByObj(this.myHand.obj);
+                        this.clearHandlers();
+                        this.addHandlersByObj(this.obj);
                     }
                 }
 
                 // 重置 this.myHand
-                this.myHand.resetHand();
+                this.resetHand();
             });
 
 
@@ -618,28 +623,3 @@ function correctRect(x, y, width, height) {
 }
 
 
-const type = ["line", "rect", ""];
-let index = 0;
-
-/**
- * 响应键盘事件
- */
-document.addEventListener("keypress", (e) => {
-    if (e.code === "Space") {
-        this.myHand.type = type[index++ % type.length];
-        console.log(this.myHand.type)
-        return;
-    }
-    if (e.ctrlKey) {
-        switch (e.code) {
-            case "KeyZ":
-                this.myHand.clearHandlers();
-                if (e.shiftKey) {
-                    this.myHand.undoRemoveNode();
-                } else {
-                    this.myHand.undo();
-                }
-                return;
-        }
-    }
-})
