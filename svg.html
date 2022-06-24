@@ -343,44 +343,86 @@
                     const oHeight = parseFloat(obj.getAttribute("height"));
                     const offsetX = x - cx;
                     const offsetY = y - cy;
+                    let fWidth = oWidth;
+                    let fHeight = oHeight;
                     switch (position) {
                         case "0":
+                            fWidth = oWidth - offsetX;
+                            fHeight = oHeight - offsetY;
                             obj.setAttribute("x", x);
                             obj.setAttribute("y", y);
-                            obj.setAttribute("width", oWidth - offsetX);
-                            obj.setAttribute("height", oHeight - offsetY);
                             break;
                         case "1":
+                            fHeight = oHeight - offsetY;
                             obj.setAttribute("y", y);
-                            obj.setAttribute("height", oHeight - offsetY);
                             break;
                         case "2":
+                            fWidth = oWidth + offsetX;
+                            fHeight = oHeight - offsetY;
                             obj.setAttribute("y", y);
-                            obj.setAttribute("width", oWidth + offsetX);
-                            obj.setAttribute("height", oHeight - offsetY);
                             break;
                         case "3":
-                            obj.setAttribute("width", oWidth + offsetX);
+                            fWidth = oWidth + offsetX;
                             break;
                         case "4":
-                            obj.setAttribute("width", oWidth + offsetX);
-                            obj.setAttribute("height", oHeight + offsetY);
+                            fWidth = oWidth + offsetX;
+                            fHeight = oHeight + offsetY;
                             break;
                         case "5":
-                            obj.setAttribute("height", oHeight + offsetY);
+                            fHeight = oHeight + offsetY;
                             break;
                         case "6":
+                            fWidth = oWidth - offsetX;
+                            fHeight = oHeight + offsetY;
                             obj.setAttribute("x", x);
-                            obj.setAttribute("width", oWidth - offsetX);
-                            obj.setAttribute("height", oHeight + offsetY);
                             break;
                         case "7":
+                            fWidth = oWidth - offsetX;
                             obj.setAttribute("x", x);
-                            obj.setAttribute("width", oWidth - offsetX);
                             break;
-
-
                     }
+                    obj.setAttribute("width", Math.abs(fWidth));
+                    obj.setAttribute("height", Math.abs(fHeight));
+                    if (fWidth < 0) {
+                        if (fHeight < 0) {
+                            switch (position) {
+                                case "0":
+                                    obj.setAttribute("x", ox + oWidth);
+                                    obj.setAttribute("y", oy + oHeight);
+                                    break;
+                                case "2":
+                                    obj.setAttribute("x", ox + fWidth);
+                                    obj.setAttribute("y", oy + oHeight);
+                                    break;
+                                case "4":
+                                    obj.setAttribute("x", ox + fWidth);
+                                    obj.setAttribute("y", oy + fHeight);
+                                    break;
+                                case "6":
+                                    obj.setAttribute("x", ox + oWidth);
+                                    obj.setAttribute("y", oy + fHeight);
+                                    break;
+                            }
+                            myHand.obj = myHand.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectCornerMap[position]);
+                        } else {
+                            if (["0", "6", "7"].includes(position)) {
+                                obj.setAttribute("x", ox + oWidth);
+                            } else if (["2", "3", "4"].includes(position)) {
+                                obj.setAttribute("x", ox + fWidth);
+                            }
+                            myHand.obj = myHand.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectVMap[position]);
+                        }
+                    } else {
+                        if (fHeight < 0) {
+                            if (["0", "1", "2"].includes(position)) {
+                                obj.setAttribute("y", oy + oHeight);
+                            } else if (["4", "5", "6"].includes(position)) {
+                                obj.setAttribute("y", oy + fHeight);
+                            }
+                            myHand.obj = myHand.handlers.find((h) => h.sgParent === obj && h.getAttribute("handlerPosition") === rectHMap[position]);
+                        }
+                    }
+                    break;
             }
             myHand.updateHandlersByObj(obj);
         },
@@ -402,6 +444,9 @@
 
     }
 
+    const rectCornerMap = {0: "4", 1: "5", 2: "6", 3: "7", 4: "0", 5: "1", 6: "2", 7: "3"}
+    const rectVMap = {0: "2", 7: "3", 6: "4", 2: "0", 3: "7", 4: "6"};
+    const rectHMap = {0: "6", 1: "5", 2: "4", 6: "0", 5: "1", 4: "2"};
 
     function createHandlers(sgParent, number) {
         const handlers = []
