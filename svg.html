@@ -210,11 +210,11 @@
             switch (obj.getAttribute("type")) {
                 case "line":
                     handlers = createHandlers(obj, 2);
-                    defaultHandler = handlers[1];
+                    defaultHandler = handlers[obj.defaultIndex ? obj.defaultIndex : 1];
                     break;
                 case "rect":
                     handlers = createHandlers(obj, 8);
-                    defaultHandler = handlers[4];
+                    defaultHandler = handlers[obj.defaultIndex ? obj.defaultIndex : 4];
                     break;
             }
             this.handlers.push(...handlers);
@@ -484,6 +484,7 @@
         for (const [key, value] of Object.entries(option)) {
             drawObj.setAttribute(key, value);
         }
+        drawObj.setAttribute("type", type);
         drawObj.setAttribute("stroke-width", "2");
         drawObj.setAttribute("stroke", "black");
         drawObj.setAttribute("id", getId());
@@ -498,6 +499,16 @@
         return `UID${(new Date()).getTime()}`;
     }
 
+
+    function correctRect(x, y, width, height) {
+        return {
+            x: width < 0 ? x + width : x,
+            y: height < 0 ? y + height : y,
+            width: Math.abs(width),
+            height: Math.abs(height),
+            defaultIndex: width < 0 && height < 0 ? 0 : width < 0 ? 6 : height < 0 ? 2 : 4
+        }
+    }
 
     mySvg.addEventListener("mousedown", (e) => {
         // 监听鼠标按下事件，设置 myHand
@@ -531,17 +542,12 @@
                                 y1: myHand.startY,
                                 x2: e.offsetX,
                                 y2: e.offsetY,
-                                type: myHand.type
                             }
                             break;
                         case "rect":
-                            option = {
-                                x: myHand.startX,
-                                y: myHand.startY,
-                                width: e.offsetX - parseFloat(myHand.startX),
-                                height: e.offsetY - parseFloat(myHand.startY),
-                                type: myHand.type
-                            }
+
+
+                            option = correctRect(myHand.startX, myHand.startY, e.offsetX - parseFloat(myHand.startX), e.offsetY - parseFloat(myHand.startY))
                             break;
                     }
                     const drawObj = createObjectBy(myHand.type, option);
