@@ -34,7 +34,9 @@ class SgVditor {
     // create / delete / modify
     mode = "";
     /**
-     * 当前鼠标类型，为空则表示选择模式
+     * 当前鼠标类型
+     * select: 当前为选中模式
+     * [图形]: 绘图模式
      */
     type = "line";
     /**
@@ -478,6 +480,8 @@ class SgVditor {
                                     break;
                                 case "rect":
                                     option = correctRect(this.startX, this.startY, e.offsetX - parseFloat(this.startX), e.offsetY - parseFloat(this.startY))
+                                    option.fill = "white";
+                                    option['fill-opacity'] = 0
                                     break;
                             }
                             const drawObj = createObjectBy(this.type, option);
