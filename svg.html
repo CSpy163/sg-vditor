@@ -37,6 +37,7 @@
         <button onclick="changeType('select')">选择</button>
         <button onclick="changeType('line')">直线</button>
         <button onclick="changeType('rect')">矩形</button>
+        <button onclick="changeType('polygon')">多边形</button>
     </div>
 
 </div>
@@ -45,7 +46,7 @@
 
     function changeType(type) {
         sgVditor.type = type;
-
+        sgVditor.clearHandlers();
     }
 
 

@@ -44,7 +44,7 @@ class SgVditor {
      */
     obj = null;
     /**
-     * 现有把手，用于维护编辑状态的所有对象
+     * 现有把手，用于维护编辑状态的所有对象。
      */
     handlers = [];
     /**
@@ -206,6 +206,10 @@ class SgVditor {
                 }
                 defaultHandler = handlers[obj.defaultHandler ?? 4];
                 break;
+            case "polygon":
+                obj.getAttribute("points");
+
+                break;
         }
         this.handlers.push(...handlers);
         this.updateHandlersByObj(obj);
@@ -242,7 +246,9 @@ class SgVditor {
      */
     resetHand() {
         this.mode = "";
-        this.obj = null;
+        if (this.type !== 'polygon') {
+            this.obj = null;
+        }
         this.mousePressed = false;
         this.mousePressingMove = false;
         this.capture = null;
@@ -328,7 +334,7 @@ class SgVditor {
         this.updateHandlersByObj(obj);
     }
 
-    moveObjTo(handler, x, y) {
+    moveHandlerTo(handler, x, y) {
         const obj = handler.sgParent;
         const position = handler.getAttribute("handlerPosition");
         const cx = parseFloat(handler.getAttribute("cx"));
@@ -433,6 +439,12 @@ class SgVditor {
                     }
                 }
                 break;
+            case "polygon":
+                handler.setAttribute("cx", x);
+                handler.setAttribute("cy", y);
+                updatePolygonByPoints(handler.sgParent, this.handlers);
+                break;
+
         }
         this.updateHandlersByObj(obj);
     }
@@ -455,7 +467,9 @@ class SgVditor {
                 this.startX = e.offsetX;
                 this.startY = e.offsetY;
 
-                this.obj = e.target;
+                if (this.type !== 'polygon') {
+                    this.obj = e.target;
+                }
             });
             this.mySvg.addEventListener("mousemove", (e) => {
                 if (this.mousePressed) {
@@ -468,7 +482,7 @@ class SgVditor {
                             this.capture = this.takeCapture();
                             this.mode = "modify";
                         }
-                        this.moveObjTo(this.obj, e.offsetX, e.offsetY)
+                        this.moveHandlerTo(this.obj, e.offsetX, e.offsetY)
                     } else {
                         if (this.type) {
                             this.clearHandlers();
@@ -522,20 +536,31 @@ class SgVditor {
                         }
 
                     }
+                } else {
+                    if (this.type === 'polygon' && this.handlers.length !== 0) {
+                        if (this.handlers.length === 1) {
+                            const handler = createHandler(this.mySvg, this.handlers[0].sgParent, 0, {
+                                x: e.offsetX,
+                                y: e.offsetY,
+                            })
+                            this.handlers.push(handler);
+                            this.obj = handler;
+                        } else {
+                            this.obj.setAttribute("cx", e.offsetX)
+                            this.obj.setAttribute("cy", e.offsetY)
+                        }
+                        updatePolygonByPoints(this.obj.sgParent, this.handlers)
+                    }
                 }
             });
             this.mySvg.addEventListener("mouseup", (e) => {
                 if (this.mousePressingMove) {
-
                     if (this.mode === "select") {
                         if (this.obj.classList.contains("handler")) {
                             this.obj.sgParent.remove();
                             this.clearHandlers();
                         }
                         // const this.obj
-
-
-
 
                     } else {
                         const captureEnd = this.takeCapture();
@@ -546,15 +571,51 @@ class SgVditor {
                     }
 
                 } else {
-                    if (this.obj === this.mySvg) {
-                        this.clearHandlers();
+                    if (this.type === 'polygon') {
+                        console.log('绘制多边形')
+                        if (this.handlers.length === 0) {
+                            console.log("开始")
+                            const option = {
+                                type: 'polygon',
+                            }
+                            const drawObj = createObjectBy(option);
+                            this.mySvg.appendChild(drawObj);
+                            const handler = createHandler(this.mySvg, drawObj, 0, {
+                                x: e.offsetX,
+                                y: e.offsetY,
+                            })
+                            this.handlers.push(handler);
+                            this.obj = handler;
+                        } else {
+                            const prev = this.handlers[this.handlers.length - 2];
+                            const curr = this.handlers[this.handlers.length - 1];
+                            if (prev.getAttribute("cx") === curr.getAttribute("cx") && prev.getAttribute("cy") === curr.getAttribute("cy")) {
+                                // 绘制多边形结束，弹出多余点
+                                const endHandler = this.handlers.pop();
+                                endHandler.remove();
+                                this.type = ""
+                            } else {
+                                const handler = createHandler(this.mySvg, this.obj.sgParent, 0, {
+                                    x: e.offsetX,
+                                    y: e.offsetY,
+                                })
+                                this.handlers.push(handler);
+                                this.obj = handler;
+                            }
+                        }
+                        updatePolygonByPoints(this.obj.sgParent, this.handlers)
+                    } else {
+                        if (this.obj === this.mySvg) {
+                            this.clearHandlers();
+                        }
+                        // 点击事件
+                        if (this.obj !== this.mySvg && !this.obj.classList.contains("handler")) {
+                            // 既不是 svg 也不是 handler，只能是图形对象
+                            this.clearHandlers();
+                            this.addHandlersByObj(this.obj);
+                        }
                     }
-                    // 点击事件
-                    if (this.obj !== this.mySvg && !this.obj.classList.contains("handler")) {
-                        // 既不是 svg 也不是 handler，只能是图形对象
-                        this.clearHandlers();
-                        this.addHandlersByObj(this.obj);
-                    }
+
                 }
 
                 // 重置 this.myHand
@@ -567,6 +628,14 @@ class SgVditor {
         }
 
     }
+}
+
+function updatePolygonByPoints(polygon, handlers) {
+    const array = [];
+    handlers.forEach(handler => {
+        array.push(`${handler.getAttribute("cx")},${handler.getAttribute("cy")}`)
+    })
+    polygon.setAttribute("points", array.join(" "));
 }
 
 
@@ -585,9 +654,11 @@ function createHandlers(mySvg, sgParent, number, option) {
  * 创建“把手”
  */
 function createHandler(mySvg, sgParent, position, option) {
+    const x = option?.x ?? 0;
+    const y = option?.y ?? 0;
     const handler = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    handler.setAttribute("cx", 0);
-    handler.setAttribute("cy", 0);
+    handler.setAttribute("cx", x);
+    handler.setAttribute("cy", y);
     handler.setAttribute("r", "3");
     handler.setAttribute("fill", "white");
     handler.setAttribute("stroke", "black");
