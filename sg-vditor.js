@@ -528,7 +528,10 @@ class SgVditor {
                 if (this.mousePressingMove) {
 
                     if (this.mode === "select") {
-                        console.log('select')
+                        if (this.obj.classList.contains("handler")) {
+                            this.obj.sgParent.remove();
+                            this.clearHandlers();
+                        }
                         // const this.obj
 
 
