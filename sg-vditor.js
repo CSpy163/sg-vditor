@@ -574,7 +574,6 @@ class SgVditor {
                     if (this.type === 'polygon') {
                         console.log('绘制多边形')
                         if (this.handlers.length === 0) {
-                            console.log("开始")
                             const option = {
                                 type: 'polygon',
                             }
