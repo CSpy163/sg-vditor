@@ -199,7 +199,11 @@ class SgVditor {
                 defaultHandler = handlers[obj.defaultHandler ?? 1];
                 break;
             case "rect":
-                handlers = createHandlers(this.mySvg, obj, 8);
+                if (obj.getAttribute("select")) {
+                    handlers = createHandlers(this.mySvg, obj, 8, {hidden: true});
+                } else {
+                    handlers = createHandlers(this.mySvg, obj, 8);
+                }
                 defaultHandler = handlers[obj.defaultHandler ?? 4];
                 break;
         }
@@ -477,17 +481,27 @@ class SgVditor {
                                         x2: e.offsetX,
                                         y2: e.offsetY,
                                     }
+                                    option.type = 'line';
                                     break;
                                 case "rect":
                                     option = correctRect(this.startX, this.startY, e.offsetX - parseFloat(this.startX), e.offsetY - parseFloat(this.startY))
-                                    option.fill = "white";
-                                    option['fill-opacity'] = 0
+                                    option.type = 'rect';
+                                    break;
+                                case "select":
+                                    if (this.obj === this.mySvg) {
+                                        option = correctRect(this.startX, this.startY, e.offsetX - parseFloat(this.startX), e.offsetY - parseFloat(this.startY));
+                                        option.type = 'rect';
+                                        option.select = true;
+                                    }
                                     break;
                             }
-                            const drawObj = createObjectBy(this.type, option);
-                            this.mySvg.appendChild(drawObj);
-                            this.mode = "create";
-                            this.obj = this.addHandlersByObj(drawObj);
+                            if (option) {
+                                const drawObj = createObjectBy(option);
+                                this.mySvg.appendChild(drawObj);
+                                this.mode = option.select ? "select" : "create";
+                                this.obj = this.addHandlersByObj(drawObj);
+                            }
+
                         } else {
                             if (this.obj === this.mySvg) {
                                 // todo 绘制选区
@@ -512,8 +526,14 @@ class SgVditor {
             });
             this.mySvg.addEventListener("mouseup", (e) => {
                 if (this.mousePressingMove) {
-                    if (this.obj === this.mySvg) {
-                        // todo 设置选取内的图形为唯一选中
+
+                    if (this.mode === "select") {
+                        console.log('select')
+                        // const this.obj
+
+
+
+
                     } else {
                         const captureEnd = this.takeCapture();
                         let sgNode = new SgItemNode(captureEnd);
@@ -521,6 +541,7 @@ class SgVditor {
                         sgNode.capture = this.capture;
                         this.addNodeToLinkList(sgNode);
                     }
+
                 } else {
                     if (this.obj === this.mySvg) {
                         this.clearHandlers();
@@ -549,10 +570,10 @@ class SgVditor {
 /**
  * 创建多个 handler
  */
-function createHandlers(mySvg, sgParent, number) {
+function createHandlers(mySvg, sgParent, number, option) {
     const handlers = []
     for (let i = 0; i < number; i++) {
-        handlers.push(createHandler(mySvg, sgParent, i));
+        handlers.push(createHandler(mySvg, sgParent, i, option));
     }
     return handlers;
 }
@@ -560,14 +581,21 @@ function createHandlers(mySvg, sgParent, number) {
 /**
  * 创建“把手”
  */
-function createHandler(mySvg, sgParent, position) {
+function createHandler(mySvg, sgParent, position, option) {
     const handler = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     handler.setAttribute("cx", 0);
     handler.setAttribute("cy", 0);
-    handler.setAttribute("stroke", "black");
     handler.setAttribute("r", "3");
     handler.setAttribute("fill", "white");
+    handler.setAttribute("stroke", "black");
+
+    // 如果是隐形 handler
+    if (option?.hidden) {
+        handler.setAttribute("opacity", 0);
+        handler.setAttribute("stroke-opacity", 0);
+    }
     handler.setAttribute("handlerPosition", position);
+
     handler.classList.add("handler");
     handler.sgParent = sgParent;
     mySvg.appendChild(handler);
@@ -580,15 +608,23 @@ function createHandler(mySvg, sgParent, position) {
  * @param option
  * @returns {*}
  */
-function createObjectBy(type, option) {
-    const drawObj = document.createElementNS("http://www.w3.org/2000/svg", type);
+function createObjectBy(option) {
+    const drawObj = document.createElementNS("http://www.w3.org/2000/svg", option.type);
     for (const [key, value] of Object.entries(option)) {
         drawObj.setAttribute(key, value);
     }
-    drawObj.setAttribute("type", type);
+    drawObj.setAttribute("fill", "white");
+    drawObj.setAttribute("fill-opacity", 0)
     drawObj.setAttribute("stroke-width", "2");
     drawObj.setAttribute("stroke", "black");
     drawObj.setAttribute("id", getId());
+
+    // 选择模式
+    if (option.select) {
+        drawObj.setAttribute("stroke-width", "1");
+        drawObj.setAttribute("fill", "blue");
+        drawObj.setAttribute("fill-opacity", 0.2)
+    }
     return drawObj;
 }
 

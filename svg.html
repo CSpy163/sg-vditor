@@ -5,9 +5,23 @@
     <title>SVG Test</title>
     <script src="./sg-vditor.js"></script>
     <style>
+        .container {
+            display: grid;
+            grid-template-areas: "svg pane" "func func";
+        }
+
+        .pane {
+            grid-area: pane;
+        }
+
+        .func {
+            grid-area: func;
+        }
+
         #mySvg {
-            width: 100vw;
-            height: 100vh;
+            width: 800px;
+            height: 600px;
+            border: solid 1px black;
         }
 
         .handler {
@@ -16,12 +30,23 @@
     </style>
 </head>
 <body>
-<svg id="mySvg"></svg>
+<div class="container">
+    <svg id="mySvg"></svg>
+    <div class="pane"></div>
+    <div class="func">
+        <button onclick="changeType('select')">选择</button>
+        <button onclick="changeType('line')">直线</button>
+        <button onclick="changeType('rect')">矩形</button>
+    </div>
+
+</div>
 <script>
     const sgVditor = new SgVditor({svg: "#mySvg"});
 
+    function changeType(type) {
+        sgVditor.type = type;
 
-
+    }
 
 
     const tmpTypes = ["line", "rect", ""];
