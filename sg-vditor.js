@@ -460,18 +460,76 @@ class SgVditor {
         }
         if (node instanceof SVGElement) {
             this.mySvg = node;
+
+            console.log(this.mySvg.clientWidth)
+            this.mySvg.setAttribute("viewBox", `0 0 ${this.mySvg.clientWidth} ${this.mySvg.clientHeight}`)
+
+            this.mySvg.addEventListener("wheel", (e) => {
+                const {deltaY, offsetX, offsetY} = e;
+                // console.log(e)
+                // const {x, y} = offsetByViewBox(this.mySvg.getAttribute("viewBox"),
+                //     {width: this.mySvg.clientWidth, height: this.mySvg.clientHeight},
+                //     {
+                //         x: e.offsetX,
+                //         y: e.offsetY
+                //     }
+                // )
+
+                const oldViewBox = this.mySvg.getAttribute("viewBox");
+                this.mySvg.setAttribute("viewBox", scaleViewBox(oldViewBox,
+                    {width: this.mySvg.clientWidth, height: this.mySvg.clientHeight},
+                    {
+                        x: offsetX,
+                        y: offsetY
+                    }, deltaY > 0 ? 1.1 : 0.9))
+            })
+            /**
+             * 响应键盘事件
+             */
+            this.mySvg.addEventListener("keypress", (e) => {
+                if (e.code === "Space") {
+                    this.type = tmpTypes[tmpIndex++ % tmpTypes.length];
+                    return;
+                }
+                if (e.ctrlKey) {
+                    switch (e.code) {
+                        case "KeyZ":
+                            this.clearHandlers();
+                            if (e.shiftKey) {
+                                this.undoRemoveNode();
+                            } else {
+                                this.undo();
+                            }
+                            return;
+                    }
+                }
+            })
             this.mySvg.addEventListener("mousedown", (e) => {
                 // 监听鼠标按下事件，设置 this.myHand
                 this.mousePressed = true;
                 // this.mousePressingMove = false;
-                this.startX = e.offsetX;
-                this.startY = e.offsetY;
+                const {x, y} = offsetByViewBox(this.mySvg.getAttribute("viewBox"),
+                    {width: this.mySvg.clientWidth, height: this.mySvg.clientHeight},
+                    {
+                        x: e.offsetX,
+                        y: e.offsetY
+                    }
+                )
+                this.startX = x;
+                this.startY = y;
 
                 if (this.type !== 'polygon') {
                     this.obj = e.target;
                 }
             });
             this.mySvg.addEventListener("mousemove", (e) => {
+                const {x, y} = offsetByViewBox(this.mySvg.getAttribute("viewBox"),
+                    {width: this.mySvg.clientWidth, height: this.mySvg.clientHeight},
+                    {
+                        x: e.offsetX,
+                        y: e.offsetY
+                    }
+                )
                 if (this.mousePressed) {
                     // 只处理按下移动事件
                     this.mousePressingMove = true;
@@ -482,7 +540,7 @@ class SgVditor {
                             this.capture = this.takeCapture();
                             this.mode = "modify";
                         }
-                        this.moveHandlerTo(this.obj, e.offsetX, e.offsetY)
+                        this.moveHandlerTo(this.obj, x, y)
                     } else {
                         if (this.type) {
                             this.clearHandlers();
@@ -492,18 +550,18 @@ class SgVditor {
                                     option = {
                                         x1: this.startX,
                                         y1: this.startY,
-                                        x2: e.offsetX,
-                                        y2: e.offsetY,
+                                        x2: x,
+                                        y2: y,
                                     }
                                     option.type = 'line';
                                     break;
                                 case "rect":
-                                    option = correctRect(this.startX, this.startY, e.offsetX - parseFloat(this.startX), e.offsetY - parseFloat(this.startY))
+                                    option = correctRect(this.startX, this.startY, x - parseFloat(this.startX), y - parseFloat(this.startY))
                                     option.type = 'rect';
                                     break;
                                 case "select":
                                     if (this.obj === this.mySvg) {
-                                        option = correctRect(this.startX, this.startY, e.offsetX - parseFloat(this.startX), e.offsetY - parseFloat(this.startY));
+                                        option = correctRect(this.startX, this.startY, x - parseFloat(this.startX), y - parseFloat(this.startY));
                                         option.type = 'rect';
                                         option.select = true;
                                     }
@@ -529,9 +587,9 @@ class SgVditor {
                                     this.capture = this.takeCapture();
                                     this.mode = "modify";
                                 }
-                                this.offsetObjTo(this.obj, e.offsetX - this.startX, e.offsetY - this.startY)
-                                this.startX = e.offsetX;
-                                this.startY = e.offsetY;
+                                this.offsetObjTo(this.obj, x - this.startX, y - this.startY)
+                                this.startX = x;
+                                this.startY = y;
                             }
                         }
 
@@ -540,20 +598,27 @@ class SgVditor {
                     if (this.type === 'polygon' && this.handlers.length !== 0) {
                         if (this.handlers.length === 1) {
                             const handler = createHandler(this.mySvg, this.handlers[0].sgParent, 0, {
-                                x: e.offsetX,
-                                y: e.offsetY,
+                                x: x,
+                                y: y,
                             })
                             this.handlers.push(handler);
                             this.obj = handler;
                         } else {
-                            this.obj.setAttribute("cx", e.offsetX)
-                            this.obj.setAttribute("cy", e.offsetY)
+                            this.obj.setAttribute("cx", x)
+                            this.obj.setAttribute("cy", y)
                         }
                         updatePolygonByPoints(this.obj.sgParent, this.handlers)
                     }
                 }
             });
             this.mySvg.addEventListener("mouseup", (e) => {
+                const {x, y} = offsetByViewBox(this.mySvg.getAttribute("viewBox"),
+                    {width: this.mySvg.clientWidth, height: this.mySvg.clientHeight},
+                    {
+                        x: e.offsetX,
+                        y: e.offsetY
+                    }
+                )
                 if (this.mousePressingMove) {
                     if (this.mode === "select") {
                         if (this.obj.classList.contains("handler")) {
@@ -580,8 +645,8 @@ class SgVditor {
                             const drawObj = createObjectBy(option);
                             this.mySvg.appendChild(drawObj);
                             const handler = createHandler(this.mySvg, drawObj, 0, {
-                                x: e.offsetX,
-                                y: e.offsetY,
+                                x: x,
+                                y: y,
                             })
                             this.handlers.push(handler);
                             this.obj = handler;
@@ -595,8 +660,8 @@ class SgVditor {
                                 this.type = ""
                             } else {
                                 const handler = createHandler(this.mySvg, this.obj.sgParent, 0, {
-                                    x: e.offsetX,
-                                    y: e.offsetY,
+                                    x: x,
+                                    y: y,
                                 })
                                 this.handlers.push(handler);
                                 this.obj = handler;
@@ -626,6 +691,39 @@ class SgVditor {
             console.error("svg 元素初始化失败！")
         }
 
+    }
+}
+
+
+/**
+ *
+ * @param value 原有 viewBox 值
+ * @param point 鼠标位置
+ * @param scale 放大缩小比例
+ * @returns {string}
+ */
+function scaleViewBox(value, size, offsetPoint, scale) {
+    const vs = value.split(" ").map(v => parseFloat(v));
+    const newX = vs[0] + (1 - scale) * (offsetPoint.x / size.width * vs[2]);
+    const newY = vs[1] + (1 - scale) * (offsetPoint.y / size.height * vs[3]);
+    const newWidth = vs[2] * scale;
+    const newHeight = vs[3] * scale;
+    return `${newX} ${newY} ${newWidth} ${newHeight}`
+}
+
+/**
+ * 使用 viewBox 实现偏移
+ * @param value
+ * @param point
+ * @returns {{x: number, y: number}}
+ */
+function offsetByViewBox(value, size, point) {
+    const vs = value.split(" ").map(v => Math.floor(parseFloat(v)));
+    const newX = vs[0] + point.x / size.width * vs[2];
+    const newY = vs[1] + point.y / size.height * vs[3];
+    return {
+        x: newX,
+        y: newY
     }
 }
 
