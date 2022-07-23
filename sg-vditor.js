@@ -31,6 +31,17 @@ class SgVditor {
      * 记录当前活动
      */
     mySvg = null;
+    mySvgSize = {
+        width: 0,
+        height: 0
+    };
+    viewBox = {
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0
+    };
+
     // create / delete / modify
     mode = "";
     /**
@@ -47,18 +58,18 @@ class SgVditor {
      * 现有把手，用于维护编辑状态的所有对象。
      */
     handlers = [];
-    /**
-     * 用于记录 x 轴坐标
-     * 绘图时：用作记录原点
-     * 拖动时：可以复用为上一次移动的点
-     */
-    startX = 0;
-    /**
-     * 用于记录 y 轴坐标
-     * 绘图时：用作记录原点
-     * 拖动时：可以复用为上一次移动的点
-     */
-    startY = 0;
+    // /**
+    //  * 用于记录 x 轴坐标
+    //  * 绘图时：用作记录原点
+    //  * 拖动时：可以复用为上一次移动的点
+    //  */
+    // startX = 0;
+    // /**
+    //  * 用于记录 y 轴坐标
+    //  * 绘图时：用作记录原点
+    //  * 拖动时：可以复用为上一次移动的点
+    //  */
+    // startY = 0;
 
     /**
      * 记录鼠标按下状态
@@ -450,6 +461,64 @@ class SgVditor {
     }
 
 
+    updateViewBox() {
+        this.mySvg.setAttribute("viewBox", `${this.viewBox.x} ${this.viewBox.y} ${this.viewBox.width} ${this.viewBox.height}`)
+    }
+
+    /**
+     * 根据某个点位缩放画布
+     *
+     * @param svgOffsetX 鼠标事件中的 offsetX
+     * @param svgOffsetY 鼠标事件中的 offsetY
+     * @param scale 缩放倍率：< 1 缩小比例 / > 1 放大比例
+     */
+    scaleViewBox(svgOffsetX, svgOffsetY, scale) {
+        const {x, y, width, height} = this.viewBox;
+        const {width: svgWidth, height: svgHeight} = this.mySvgSize;
+
+        this.viewBox = {
+            x: x + (1 - scale) * (svgOffsetX / svgWidth * width),
+            y: y + (1 - scale) * (svgOffsetY / svgHeight * height),
+            width: width * scale,
+            height: height * scale
+        }
+        this.updateViewBox();
+    }
+
+
+    /**
+     * 移动 viewBox
+     *
+     * @param svgOffsetX 鼠标事件中的 offsetX
+     * @param svgOffsetY 鼠标事件中的 offsetY
+     */
+    moveViewBox(svgOffsetX, svgOffsetY) {
+        const {x, y, width, height} = this.viewBox;
+        const {width: svgWidth, height: svgHeight} = this.mySvgSize;
+
+        this.viewBox.x = x + svgOffsetX / svgWidth * width;
+        this.viewBox.y = y + svgOffsetY / svgHeight * height;
+        this.updateViewBox();
+    }
+
+    /**
+     * 通过鼠标事件中的 offsetX 和 offsetY，转换成 svg 中的坐标（考虑 viewBox 偏移）
+     *
+     * @param svgOffsetX 鼠标事件中的 offsetX
+     * @param svgOffsetY 鼠标事件中的 offsetY
+     * @returns {{x: number, y: number}} 最终的 svg 坐标
+     */
+    svgPositionByViewBox(svgOffsetX, svgOffsetY) {
+        const {x, y, width, height} = this.viewBox;
+        const {width: svgWidth, height: svgHeight} = this.mySvgSize;
+
+        return {
+            x: x + svgOffsetX / svgWidth * width,
+            y: y + svgOffsetY / svgHeight * height
+        }
+    }
+
+
     constructor({svg}) {
         let node = null;
 
@@ -461,32 +530,38 @@ class SgVditor {
         if (node instanceof SVGElement) {
             this.mySvg = node;
 
-            console.log(this.mySvg.clientWidth)
-            this.mySvg.setAttribute("viewBox", `0 0 ${this.mySvg.clientWidth} ${this.mySvg.clientHeight}`);
+            // 设置这个属性，可以使 svg 监听 keydown / keyup 事件
             this.mySvg.setAttribute("tabindex", 0)
 
+            this.mySvgSize = {
+                width: this.mySvg.clientWidth,
+                height: this.mySvg.clientHeight
+            };
+            this.viewBox = {
+                x: 0,
+                y: 0,
+                width: this.mySvg.clientWidth,
+                height: this.mySvg.clientHeight
+            };
+            this.updateViewBox();
+
+
+            // 监听鼠标滚轮事件
             this.mySvg.addEventListener("wheel", (e) => {
+                // 滚轮向上滚动，deltaY > 0；滚轮向下滚动，deltaY < 0
                 const {deltaY, offsetX, offsetY} = e;
-                const oldViewBox = this.mySvg.getAttribute("viewBox");
-                this.mySvg.setAttribute("viewBox", scaleViewBox(oldViewBox,
-                    {width: this.mySvg.clientWidth, height: this.mySvg.clientHeight},
-                    {
-                        x: offsetX,
-                        y: offsetY
-                    }, deltaY > 0 ? 1.1 : 0.9))
+                this.scaleViewBox(offsetX, offsetY, deltaY > 0 ? 1.1 : 0.9)
             })
 
+            // 监听键盘松开事件
             this.mySvg.addEventListener("keyup", (e) => {
                 if (e.code === "Space") {
-                    console.log('auto')
                     this.mySvg.style.cursor = 'default'
                     return;
                 }
             })
 
-            /**
-             * 响应键盘事件
-             */
+            // 监听键盘按下事件
             this.mySvg.addEventListener("keydown", (e) => {
                 if (e.code === "Space") {
                     this.mySvg.style.cursor = 'move'
@@ -505,17 +580,14 @@ class SgVditor {
                     }
                 }
             })
+
+
+            // 监听鼠标按下事件
             this.mySvg.addEventListener("mousedown", (e) => {
                 // 监听鼠标按下事件，设置 this.myHand
                 this.mousePressed = true;
                 // this.mousePressingMove = false;
-                const {x, y} = offsetPositionByViewBox(this.mySvg.getAttribute("viewBox"),
-                    {width: this.mySvg.clientWidth, height: this.mySvg.clientHeight},
-                    {
-                        x: e.offsetX,
-                        y: e.offsetY
-                    }
-                )
+                const {x, y} = this.svgPositionByViewBox(e.offsetX, e.offsetY);
                 this.startX = x;
                 this.startY = y;
 
@@ -523,27 +595,15 @@ class SgVditor {
                     this.obj = e.target;
                 }
             });
-            this.mySvg.addEventListener("mousemove", (e) => {
 
-                const {x, y} = offsetPositionByViewBox(this.mySvg.getAttribute("viewBox"),
-                    {width: this.mySvg.clientWidth, height: this.mySvg.clientHeight},
-                    {
-                        x: e.offsetX,
-                        y: e.offsetY
-                    }
-                )
+            // 监听鼠标移动事件
+            this.mySvg.addEventListener("mousemove", (e) => {
+                const {x, y} = this.svgPositionByViewBox(e.offsetX, e.offsetY);
+
                 if (this.mousePressed) {
                     // 移动画布
                     if (this.mySvg.style.cursor === 'move') {
-
-                        const {width, height} = getViewBoxSize(this.mySvg.getAttribute("viewBox"));
-                        const svgWidth = this.mySvg.clientWidth
-                        const svgHeight = this.mySvg.clientHeight;
-                        console.log(`${e.movementX},${e.movementY}`)
-                        const offsetX = -e.movementX / svgWidth * width;
-                        const offsetY = -e.movementY / svgHeight * height;
-                        const newViewBox =  offsetViewBox(this.mySvg.getAttribute("viewBox"), offsetX, offsetY);
-                        this.mySvg.setAttribute("viewBox", newViewBox);
+                        this.moveViewBox(-e.movementX, -e.movementY);
                         return;
                     }
                     // 只处理按下移动事件
@@ -626,14 +686,10 @@ class SgVditor {
                     }
                 }
             });
+
+            // 监听鼠标松开事件
             this.mySvg.addEventListener("mouseup", (e) => {
-                const {x, y} = offsetPositionByViewBox(this.mySvg.getAttribute("viewBox"),
-                    {width: this.mySvg.clientWidth, height: this.mySvg.clientHeight},
-                    {
-                        x: e.offsetX,
-                        y: e.offsetY
-                    }
-                )
+                const {x, y} = this.svgPositionByViewBox(e.offsetX, e.offsetY);
                 if (this.mousePressingMove) {
                     if (this.mode === "select") {
                         if (this.obj.classList.contains("handler")) {
@@ -709,53 +765,6 @@ class SgVditor {
     }
 }
 
-
-/**
- *
- * @param value 原有 viewBox 值
- * @param point 鼠标位置
- * @param scale 放大缩小比例
- * @returns {string}
- */
-function scaleViewBox(value, size, offsetPoint, scale) {
-    const vs = value.split(" ").map(v => parseFloat(v));
-    const newX = vs[0] + (1 - scale) * (offsetPoint.x / size.width * vs[2]);
-    const newY = vs[1] + (1 - scale) * (offsetPoint.y / size.height * vs[3]);
-    const newWidth = vs[2] * scale;
-    const newHeight = vs[3] * scale;
-    return `${newX} ${newY} ${newWidth} ${newHeight}`
-}
-
-function getViewBoxSize(value) {
-    const vs = value.split(" ").map(v => parseFloat(v));
-    return {
-        width: vs[2],
-        height: vs[3]
-    }
-
-}
-
-/**
- * 使用 viewBox 实现偏移
- * @param value
- * @param point
- * @returns {{x: number, y: number}}
- */
-function offsetPositionByViewBox(value, size, point) {
-    const vs = value.split(" ").map(v => parseFloat(v));
-    const newX = vs[0] + point.x / size.width * vs[2];
-    const newY = vs[1] + point.y / size.height * vs[3];
-    return {
-        x: newX,
-        y: newY
-    }
-}
-
-
-function offsetViewBox(value, x, y) {
-    const vs = value.split(" ").map(v => parseFloat(v));
-    return `${vs[0] + x} ${vs[1] + y} ${vs[2]} ${vs[3]}`
-}
 
 function updatePolygonByPoints(polygon, handlers) {
     const array = [];
