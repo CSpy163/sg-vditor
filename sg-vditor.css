@@ -1,7 +1,7 @@
 .vidtorMenu {
     position: fixed;
-    top: 0px;
-    left: 0px;
+    top: 0;
+    left: 0;
     width: 100px;
     background-color: white;
     border: black 2px solid;
@@ -17,4 +17,10 @@
 .vidtorMenu ul li:hover {
     background-color: #b4ccfa;
     cursor: pointer;
+}
+
+.vditorTip {
+    display: inline-block;
+    position: fixed;
+
 }

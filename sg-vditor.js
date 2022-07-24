@@ -32,6 +32,7 @@ class SgVditor {
      */
     mySvg = null;
     mySvgSize = {
+        x: 0, y: 0,
         width: 0,
         height: 0
     };
@@ -519,11 +520,45 @@ class SgVditor {
     }
 
 
+    tipSpan = null;
+
+    initTipSpan() {
+        this.tipSpan = document.createElement("span");
+        this.tipSpan.classList.add("vditorTip")
+        const border = this.mySvg.getBoundingClientRect();
+        this.tipSpan.style.top = `${border.y + border.height - 22}px`
+        this.tipSpan.style.left = `${border.x + 8}px`
+        this.mySvg.parentNode.appendChild(this.tipSpan);
+        this.updateType();
+    }
+
+    updateType() {
+        let typeName = ""
+        switch (this.type) {
+            case "line":
+                typeName = "绘画模式：直线";
+                break;
+            case "rect":
+                typeName = "绘画模式：矩形";
+                break;
+            case "polygon":
+                typeName = "绘画模式：多边形";
+                break;
+            case "select":
+                typeName = "选择模式";
+                break;
+            default:
+                typeName = "无操作";
+                break;
+        }
+        this.tipSpan.innerText = `${typeName}`
+
+    }
+
     menuClick(code, param) {
         console.log(`code: ${code} param: ${param}`)
         console.log(param)
         console.log(this.type)
-
     }
 
     /**
@@ -685,6 +720,8 @@ class SgVditor {
             this.updateViewBox();
 
 
+            // 创建 tip 标签
+            this.initTipSpan();
             this.mySvg.addEventListener('contextmenu', (e) => {
                 console.log('openmenu')
 
@@ -697,7 +734,7 @@ class SgVditor {
                 // 滚轮向上滚动，deltaY > 0；滚轮向下滚动，deltaY < 0
                 const {deltaY, offsetX, offsetY} = e;
                 this.scaleViewBox(offsetX, offsetY, deltaY > 0 ? 1.1 : 0.9)
-            })
+            });
 
             // 监听键盘松开事件
             this.mySvg.addEventListener("keyup", (e) => {
@@ -705,7 +742,7 @@ class SgVditor {
                     this.mySvg.style.cursor = 'default'
                     return;
                 }
-            })
+            });
 
             // 监听键盘按下事件
             this.mySvg.addEventListener("keydown", (e) => {
