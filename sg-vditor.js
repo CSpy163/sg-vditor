@@ -766,6 +766,93 @@ class SgVditor {
 }
 
 
+/**
+ * 矩形点位映射
+ *
+ * 矩形各个把手示意图
+ *   0 1 2
+ *   7   3
+ *   6 5 4
+ */
+// 中心对称
+const rectCornerMap = {0: "4", 1: "5", 2: "6", 3: "7", 4: "0", 5: "1", 6: "2", 7: "3"};
+// 垂直轴对称
+const rectVMap = {0: "2", 7: "3", 6: "4", 2: "0", 3: "7", 4: "6"};
+// 水平轴对称
+const rectHMap = {0: "6", 1: "5", 2: "4", 6: "0", 5: "1", 4: "2"};
+
+/**
+ * 矫正矩形
+ * @param x 预期原点 X 轴坐标
+ * @param y 预期原点 Y 轴坐标
+ * @param width 预期宽度（可以为负）
+ * @param height 预期高度（可以为负）
+ * @returns {{defaultHandler: (number), x: *, width: number, y: *, height: number}}
+ */
+function correctRect(x, y, width, height) {
+    return {
+        x: width < 0 ? x + width : x,
+        y: height < 0 ? y + height : y,
+        width: Math.abs(width),
+        height: Math.abs(height),
+        defaultHandler: width < 0 && height < 0 ? 0 : width < 0 ? 6 : height < 0 ? 2 : 4
+    }
+}
+
+
+/**
+ * 判断点位是否在矩形范围内
+ *
+ * @param x 矩形 x 轴坐标
+ * @param y 矩形 y 轴坐标
+ * @param width 矩形宽度
+ * @param height 矩形高度
+ * @param point 点位
+ * @returns {boolean} 是否存在于矩形范围内
+ */
+function isInRect({x, y, width, height}, point) {
+    const {x: correctX, y: correctY, width: correctWidth, height: correctHeight} = correctRect(x, y, width, height);
+    return point.x >= correctX && point.x <= correctX + correctWidth && point.y >= correctY && point.y <= correctY + correctHeight;
+}
+
+/**
+ * 判断点位是否在矩形范围（点a、点b确定一个矩形）内
+ *
+ * @param pointA 点a
+ * @param pointB 点b
+ * @param point 点位
+ * @returns {boolean} 是否存在于矩形范围内
+ */
+function isInRectByPoints({pointA, pointB}, point) {
+    return isInRect({x: pointA.x, y: pointA.y, width: pointB.x - pointA.x, height: pointB.y - pointA.y}, point)
+}
+
+
+/**
+ * 根据两点求 “线段” 函数
+ *
+ * @param pointA 点a
+ * @param pointB 点b
+ * @returns {(function(*))|(function(*): *)}
+ */
+function getFuncBy2Points(pointA, pointB) {
+    // 如果是垂直的线段
+    if (pointA.x === pointB.x) {
+        return (x) => x === pointA.x ? x : null;
+    } else {
+        const ratio = (pointB.y - pointA.y) / (pointB.x - pointA.x);
+        const offset = pointB.y - ratio * pointB.x;
+        return (x) => x >= Math.min(pointA.x, pointB.x) && x <= Math.max(pointA.x, pointB.x) ? ratio * x + offset : null;
+    }
+}
+
+
+/**
+ * 使用 handlers 更新多边形
+ *
+ * @param polygon 多边形对象
+ * @param handlers 把手集合
+ */
 function updatePolygonByPoints(polygon, handlers) {
     const array = [];
     handlers.forEach(handler => {
@@ -846,30 +933,7 @@ function getId() {
     return `UID${(new Date()).getTime()}`;
 }
 
-/**
- * 矩形点位映射
- * @type {{"0": string, "1": string, "2": string, "3": string, "4": string, "5": string, "6": string, "7": string}}
- */
-const rectCornerMap = {0: "4", 1: "5", 2: "6", 3: "7", 4: "0", 5: "1", 6: "2", 7: "3"};
-const rectVMap = {0: "2", 7: "3", 6: "4", 2: "0", 3: "7", 4: "6"};
-const rectHMap = {0: "6", 1: "5", 2: "4", 6: "0", 5: "1", 4: "2"};
 
-/**
- * 矫正矩形
- * @param x 预期原点 X 轴坐标
- * @param y 预期原点 Y 轴坐标
- * @param width 预期宽度（可以为负）
- * @param height 预期高度（可以为负）
- * @returns {{defaultHandler: (number), x: *, width: number, y: *, height: number}}
- */
-function correctRect(x, y, width, height) {
-    return {
-        x: width < 0 ? x + width : x,
-        y: height < 0 ? y + height : y,
-        width: Math.abs(width),
-        height: Math.abs(height),
-        defaultHandler: width < 0 && height < 0 ? 0 : width < 0 ? 6 : height < 0 ? 2 : 4
-    }
-}
+
 
 
