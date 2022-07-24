@@ -207,22 +207,29 @@ class SgVditor {
         let handlers = null;
         switch (obj.getAttribute("type")) {
             case "line":
-                handlers = createHandlers(this.mySvg, obj, 2);
+                handlers = this.createHandlers(obj, 2);
                 defaultHandler = handlers[obj.defaultHandler ?? 1];
                 break;
             case "rect":
                 if (obj.getAttribute("select")) {
-                    handlers = createHandlers(this.mySvg, obj, 8, {hidden: true});
+                    handlers = this.createHandlers(obj, 8, {hidden: true});
                 } else {
-                    handlers = createHandlers(this.mySvg, obj, 8);
+                    handlers = this.createHandlers(obj, 8);
                 }
                 defaultHandler = handlers[obj.defaultHandler ?? 4];
                 break;
             case "polygon":
-                obj.getAttribute("points");
-
+                const pointsStr = obj.getAttribute("points");
+                let points = pointsStr.split(" ");
+                const handlerOptions = [];
+                for (let i = 0; i < points.length; i++) {
+                    handlerOptions.push(this.getPointFromStr(points[i]))
+                }
+                handlers = this.createHandlersBySpecific(obj, handlerOptions);
+                defaultHandler = handlers[0];
                 break;
         }
+        this.clearHandlers();
         this.handlers.push(...handlers);
         this.updateHandlersByObj(obj);
         return defaultHandler;
@@ -454,7 +461,7 @@ class SgVditor {
             case "polygon":
                 handler.setAttribute("cx", x);
                 handler.setAttribute("cy", y);
-                updatePolygonByPoints(handler.sgParent, this.handlers);
+                this.updatePolygonByPoints(handler.sgParent, this.handlers);
                 break;
 
         }
@@ -532,7 +539,8 @@ class SgVditor {
         this.updateType();
     }
 
-    updateType() {
+    updateType(type) {
+        this.type = type;
         let typeName = ""
         switch (this.type) {
             case "line":
@@ -556,9 +564,18 @@ class SgVditor {
     }
 
     menuClick(code, param) {
-        console.log(`code: ${code} param: ${param}`)
-        console.log(param)
-        console.log(this.type)
+        switch (code) {
+            case "removePolygonHandler":
+                if (this.removeHandlerFromPolygon(param.obj, param.x, param.y)) {
+                    this.addHandlersByObj(param.obj);
+                }
+                break;
+            case "addPolygonHandler":
+                this.insertHandlerToPolygon(param.obj, param.index, param.x, param.y);
+                this.addHandlersByObj(param.obj)
+                break;
+        }
+        this.cleanMenu();
     }
 
     /**
@@ -623,20 +640,28 @@ class SgVditor {
                 if (e.target.sgParent.getAttribute("type") === "polygon") {
                     menuItems.push({
                         label: "移除节点",
-                        code: "removePolygonHandler"
+                        code: "removePolygonHandler",
+                        param: {
+                            obj: e.target.sgParent,
+                            x: e.target.getAttribute("cx"),
+                            y: e.target.getAttribute("cy")
+                        }
                     })
                 }
                 break;
             case "polygon":
-                const handlerResult = this.getInsertHandlerIndex(e.target.getAttribute("points"), svgPosition, parseFloat(e.target.getAttribute("stroke-width")));
+                const handlerResult = this.getInsertHandlerIndex(e.target.getAttribute("points"), svgPosition,
+                    parseFloat(e.target.getAttribute("stroke-width")));
                 if (handlerResult) {
                     menuItems.push({
                         label: "添加节点",
                         code: "addPolygonHandler",
-                        param: handlerResult
+                        param: {
+                            ...handlerResult,
+                            obj: e.target
+                        }
                     })
                 } else {
-                    console.log('innerPolygon')
                 }
 
                 break;
@@ -693,6 +718,95 @@ class SgVditor {
     }
 
 
+    /**
+     * 使用 handlers 更新多边形
+     *
+     * @param polygon 多边形对象
+     * @param handlers 把手集合
+     */
+    updatePolygonByPoints(polygon, handlers) {
+        const array = [];
+        handlers.forEach(handler => {
+            array.push(`${handler.getAttribute("cx")},${handler.getAttribute("cy")}`)
+        })
+        polygon.setAttribute("points", array.join(" "));
+    }
+
+    removeHandlerFromPolygon(polygon, x, y) {
+        const positionStr = `${x},${y}`
+        let points = new Array(...polygon.getAttribute("points").split(" "));
+        const index = points.lastIndexOf(positionStr);
+        if (index !== -1) {
+            points.splice(index, 1);
+        }
+        if (points.length === 0) {
+            polygon.remove();
+            this.clearHandlers();
+            return false;
+        } else {
+            polygon.setAttribute("points", points.join(" "));
+            return true;
+        }
+    }
+
+    insertHandlerToPolygon(polygon, index, handlerX, handlerY) {
+        const points = new Array(...polygon.getAttribute("points").split(" "));
+        const newPoint = `${handlerX},${handlerY}`
+        const newArray = [...points.slice(0, index + 1), newPoint]
+        if (index < points.length - 1) {
+            newArray.push(...points.slice(index + 1))
+        }
+        polygon.setAttribute("points", newArray.join(" "));
+    }
+
+
+    /**
+     * 创建多个 handler
+     */
+    createHandlers(sgParent, number, option) {
+        const handlers = []
+        for (let i = 0; i < number; i++) {
+            handlers.push(this.createHandler(sgParent, i, option));
+        }
+        return handlers;
+    }
+
+    createHandlersBySpecific(sgParent, handlerOptions) {
+        const handlers = []
+        for (let i = 0; i < handlerOptions.length; i++) {
+            handlers.push(this.createHandler(sgParent, i, handlerOptions[i]))
+        }
+        return handlers;
+    }
+
+    /**
+     * 创建“把手”
+     */
+    createHandler(sgParent, position, option) {
+        const x = option?.x ?? 0;
+        const y = option?.y ?? 0;
+        const handler = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        handler.setAttribute("cx", x);
+        handler.setAttribute("cy", y);
+        handler.setAttribute("r", "3");
+        handler.setAttribute("fill", "white");
+        handler.setAttribute("stroke", "black");
+        handler.setAttribute("type", "handler")
+
+        // 如果是隐形 handler
+        if (option?.hidden) {
+            handler.setAttribute("opacity", 0);
+            handler.setAttribute("stroke-opacity", 0);
+        }
+        handler.setAttribute("handlerPosition", position);
+
+        handler.classList.add("handler");
+        handler.sgParent = sgParent;
+        this.mySvg.appendChild(handler);
+        return handler;
+    }
+
+
     constructor({svg}) {
         let node = null;
 
@@ -723,8 +837,6 @@ class SgVditor {
             // 创建 tip 标签
             this.initTipSpan();
             this.mySvg.addEventListener('contextmenu', (e) => {
-                console.log('openmenu')
-
                 this.openMenu(e, this.svgPositionByViewBox(e.offsetX, e.offsetY))
                 e.preventDefault();
             });
@@ -855,7 +967,7 @@ class SgVditor {
                 } else {
                     if (this.type === 'polygon' && this.handlers.length !== 0) {
                         if (this.handlers.length === 1) {
-                            const handler = createHandler(this.mySvg, this.handlers[0].sgParent, 0, {
+                            const handler = this.createHandler(this.handlers[0].sgParent, 0, {
                                 x: x,
                                 y: y,
                             })
@@ -865,7 +977,7 @@ class SgVditor {
                             this.obj.setAttribute("cx", x)
                             this.obj.setAttribute("cy", y)
                         }
-                        updatePolygonByPoints(this.obj.sgParent, this.handlers)
+                        this.updatePolygonByPoints(this.obj.sgParent, this.handlers)
                     }
                 }
             });
@@ -891,14 +1003,13 @@ class SgVditor {
 
                 } else {
                     if (this.type === 'polygon') {
-                        console.log('绘制多边形')
                         if (this.handlers.length === 0) {
                             const option = {
                                 type: 'polygon',
                             }
                             const drawObj = createObjectBy(option);
                             this.mySvg.appendChild(drawObj);
-                            const handler = createHandler(this.mySvg, drawObj, 0, {
+                            const handler = this.createHandler(drawObj, 0, {
                                 x: x,
                                 y: y,
                             })
@@ -911,9 +1022,9 @@ class SgVditor {
                                 // 绘制多边形结束，弹出多余点
                                 const endHandler = this.handlers.pop();
                                 endHandler.remove();
-                                this.type = ""
+                                this.updateType("select")
                             } else {
-                                const handler = createHandler(this.mySvg, this.obj.sgParent, 0, {
+                                const handler = this.createHandler(this.obj.sgParent, 0, {
                                     x: x,
                                     y: y,
                                 })
@@ -921,7 +1032,7 @@ class SgVditor {
                                 this.obj = handler;
                             }
                         }
-                        updatePolygonByPoints(this.obj.sgParent, this.handlers)
+                        this.updatePolygonByPoints(this.obj.sgParent, this.handlers)
                     } else {
                         if (this.obj === this.mySvg) {
                             this.clearHandlers();
@@ -1029,59 +1140,6 @@ function getFuncBy2Points(pointA, pointB) {
     }
 }
 
-
-/**
- * 使用 handlers 更新多边形
- *
- * @param polygon 多边形对象
- * @param handlers 把手集合
- */
-function updatePolygonByPoints(polygon, handlers) {
-    const array = [];
-    handlers.forEach(handler => {
-        array.push(`${handler.getAttribute("cx")},${handler.getAttribute("cy")}`)
-    })
-    polygon.setAttribute("points", array.join(" "));
-}
-
-
-/**
- * 创建多个 handler
- */
-function createHandlers(mySvg, sgParent, number, option) {
-    const handlers = []
-    for (let i = 0; i < number; i++) {
-        handlers.push(createHandler(mySvg, sgParent, i, option));
-    }
-    return handlers;
-}
-
-/**
- * 创建“把手”
- */
-function createHandler(mySvg, sgParent, position, option) {
-    const x = option?.x ?? 0;
-    const y = option?.y ?? 0;
-    const handler = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    handler.setAttribute("cx", x);
-    handler.setAttribute("cy", y);
-    handler.setAttribute("r", "3");
-    handler.setAttribute("fill", "white");
-    handler.setAttribute("stroke", "black");
-    handler.setAttribute("type", "handler")
-
-    // 如果是隐形 handler
-    if (option?.hidden) {
-        handler.setAttribute("opacity", 0);
-        handler.setAttribute("stroke-opacity", 0);
-    }
-    handler.setAttribute("handlerPosition", position);
-
-    handler.classList.add("handler");
-    handler.sgParent = sgParent;
-    mySvg.appendChild(handler);
-    return handler;
-}
 
 /**
  * 动态创建对象，同时使用 option 动态设置属性

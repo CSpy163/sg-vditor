@@ -46,6 +46,7 @@
     const sgVditor = new SgVditor({svg: "#mySvg"});
 
     function changeType(type) {
+        sgVditor.updateType(type)
         sgVditor.type = type;
         sgVditor.clearHandlers();
     }
