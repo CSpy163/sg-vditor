@@ -1,0 +1,20 @@
+.vidtorMenu {
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    width: 100px;
+    background-color: white;
+    border: black 2px solid;
+    border-radius: 4px;
+}
+
+.vidtorMenu ul {
+    list-style: none;
+    padding: 5px;
+    margin: 0;
+}
+
+.vidtorMenu ul li:hover {
+    background-color: #b4ccfa;
+    cursor: pointer;
+}

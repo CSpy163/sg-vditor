@@ -519,6 +519,145 @@ class SgVditor {
     }
 
 
+    menuClick(code, param) {
+        console.log(`code: ${code} param: ${param}`)
+        console.log(param)
+        console.log(this.type)
+
+    }
+
+    /**
+     * 根据坐标点、菜单项创建菜单
+     *
+     * @param x 鼠标在屏幕上的 x 轴坐标
+     * @param y 鼠标在屏幕上的 y 轴坐标
+     * @param menuItems 菜单项配置
+     * @returns {HTMLDivElement} 菜单对象
+     */
+    createMenu({x, y}, menuItems) {
+        let menu = document.createElement("div");
+        menu.classList.add("vidtorMenu");
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+
+        let menuList = document.createElement("ul");
+        menu.appendChild(menuList);
+
+        for (let i = 0; i < menuItems.length; i++) {
+            const {label, code, param} = menuItems[i];
+            let menuItem = document.createElement("li");
+            menuItem.innerText = label;
+            menuItem.onclick = () => this.menuClick(code, param)
+            menuList.appendChild(menuItem)
+        }
+        return menu;
+    }
+
+    /**
+     * 清理菜单及其配置项
+     */
+    cleanMenu() {
+        if (this.contextMenu) {
+            // 清理监听器（可能有必要？）
+            this.contextMenu.querySelectorAll("li")?.forEach(li => {
+                li.onclick = null;
+            })
+            this.contextMenu.remove();
+            this.contextMenu = null;
+        }
+    }
+
+    contextMenu = null;
+
+
+    /**
+     * 打开菜单
+     *
+     * @param e 菜单展开事件
+     * @param svgPosition svg 中的位置（用于处理图形事件 ）
+     */
+    openMenu(e, svgPosition) {
+        if (this.contextMenu) {
+            this.cleanMenu();
+        }
+
+        let menuItems = [];
+
+        switch (e.target.getAttribute("type")) {
+            case "handler":
+                if (e.target.sgParent.getAttribute("type") === "polygon") {
+                    menuItems.push({
+                        label: "移除节点",
+                        code: "removePolygonHandler"
+                    })
+                }
+                break;
+            case "polygon":
+                const handlerResult = this.getInsertHandlerIndex(e.target.getAttribute("points"), svgPosition, parseFloat(e.target.getAttribute("stroke-width")));
+                if (handlerResult) {
+                    menuItems.push({
+                        label: "添加节点",
+                        code: "addPolygonHandler",
+                        param: handlerResult
+                    })
+                } else {
+                    console.log('innerPolygon')
+                }
+
+                break;
+        }
+
+        this.contextMenu = this.createMenu({x: e.x, y: e.y}, menuItems);
+        if (menuItems.length !== 0) {
+            this.mySvg.parentNode.appendChild(this.contextMenu);
+        }
+    }
+
+    getPointFromStr(pointStr) {
+        const splits = pointStr.split(",");
+        return {
+            x: parseFloat(splits[0]),
+            y: parseFloat(splits[1])
+        }
+    }
+
+    /**
+     * 通过多边形点坐标集合和新点位置，获取新插入的把手位置下标，及把手坐标
+     *
+     * @param pointsStr 多边形的点集合字符串
+     * @param point 新点位置
+     * @returns {number} 新把手位于把手数组的下标
+     */
+    getInsertHandlerIndex(pointsStr, point, strokeWidth) {
+        let points = pointsStr.split(" ");
+        const diffs = []
+        for (let i = 0; i < points.length; i++) {
+            const pointA = this.getPointFromStr(points[i]);
+            const next = i === points.length - 1 ? 0 : i + 1;
+            const pointB = this.getPointFromStr(points[next]);
+            if (isInRectByPoints({pointA, pointB}, point)) {
+                const fx = getFuncBy2Points(pointA, pointB);
+                diffs.push(Math.abs(point.y - fx(point.x)));
+            } else {
+                diffs.push(null);
+            }
+        }
+        const minVal = Math.min(...diffs.filter(d => !!d));
+        if (minVal) {
+            if (minVal > strokeWidth) {
+                return null;
+            }
+            const index = diffs.lastIndexOf(minVal);
+            return {
+                index: index,
+                value: minVal,
+                ...point
+            }
+        }
+        return null;
+    }
+
+
     constructor({svg}) {
         let node = null;
 
@@ -531,7 +670,7 @@ class SgVditor {
             this.mySvg = node;
 
             // 设置这个属性，可以使 svg 监听 keydown / keyup 事件
-            this.mySvg.setAttribute("tabindex", 0)
+            this.mySvg.setAttribute("tabindex", 0);
 
             this.mySvgSize = {
                 width: this.mySvg.clientWidth,
@@ -545,6 +684,13 @@ class SgVditor {
             };
             this.updateViewBox();
 
+
+            this.mySvg.addEventListener('contextmenu', (e) => {
+                console.log('openmenu')
+
+                this.openMenu(e, this.svgPositionByViewBox(e.offsetX, e.offsetY))
+                e.preventDefault();
+            });
 
             // 监听鼠标滚轮事件
             this.mySvg.addEventListener("wheel", (e) => {
@@ -885,6 +1031,7 @@ function createHandler(mySvg, sgParent, position, option) {
     handler.setAttribute("r", "3");
     handler.setAttribute("fill", "white");
     handler.setAttribute("stroke", "black");
+    handler.setAttribute("type", "handler")
 
     // 如果是隐形 handler
     if (option?.hidden) {
@@ -923,6 +1070,17 @@ function createObjectBy(option) {
         drawObj.setAttribute("fill-opacity", 0.2)
     }
     return drawObj;
+}
+
+
+/**
+ * 判断是否是鼠标主键（一般为鼠标左键）
+ *
+ * @param mouseEvent 鼠标事件
+ * @returns {boolean}
+ */
+function isMouseMain(mouseEvent) {
+    return mouseEvent.buttons === 1;
 }
 
 /**
