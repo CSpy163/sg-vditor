@@ -190,6 +190,15 @@ class SgVditor {
         return nodes;
     }
 
+    /**
+     * 清空画布
+     */
+    cleanNodes() {
+        while (this.mySvg.firstChild) {
+            this.mySvg.removeChild(this.mySvg.firstChild)
+        }
+    }
+
 
     /**
      * 创建矩形
