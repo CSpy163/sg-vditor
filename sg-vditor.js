@@ -792,6 +792,11 @@ class SgVditor {
         }
     }
 
+    /**
+     * 通过 x,y 解析点位
+     * @param pointStr
+     * @returns {{x: number, y: number}}
+     */
     getPointFromStr(pointStr) {
         const splits = pointStr.split(",");
         return {
@@ -800,6 +805,12 @@ class SgVditor {
         }
     }
 
+    /**
+     * 通过点数组字符串，返回点位
+     *
+     * @param pointsStr
+     * @returns {{x: number, y: number}[]}
+     */
     extractPointsFromPointsStr(pointsStr) {
         return pointsStr.split(" ").map(pointStr => this.getPointFromStr(pointStr));
     }
