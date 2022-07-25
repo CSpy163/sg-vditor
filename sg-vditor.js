@@ -141,6 +141,125 @@ class SgVditor {
         }
     }
 
+
+    // 额外属性前缀
+    extraAttributePrefix = "sg-";
+
+    /**
+     * 获取所有绘制的图形
+     *
+     * @returns {*[]}
+     */
+    listNodes() {
+        const childrenNodes = this.mySvg.children;
+
+        const nodes = [];
+        for (let i = 0; i < childrenNodes.length; i++) {
+            const childNode = childrenNodes[i];
+            const childType = childNode.getAttribute("type");
+            if (childType && childType !== 'handler') {
+                const node = {type: childType, id: childNode.getAttribute("id")}
+                node.extra = {}
+                childNode.getAttributeNames().forEach(atName => {
+                    if (atName.startsWith(this.extraAttributePrefix)) {
+                        node.extra[atName.substring(this.extraAttributePrefix.length)] = childNode.getAttribute(atName);
+                    }
+                })
+
+
+                switch (childType) {
+                    case "line":
+                        node.x1 = parseFloat(childNode.getAttribute("x1"));
+                        node.y1 = parseFloat(childNode.getAttribute("y1"));
+                        node.x2 = parseFloat(childNode.getAttribute("x2"));
+                        node.y2 = parseFloat(childNode.getAttribute("y2"));
+                        break;
+                    case "rect":
+                        node.x = parseFloat(childNode.getAttribute("x"));
+                        node.y = parseFloat(childNode.getAttribute("y"));
+                        node.width = parseFloat(childNode.getAttribute("width"));
+                        node.height = parseFloat(childNode.getAttribute("height"));
+                        break;
+                    case "polygon":
+                        node.points = this.extractPointsFromPointsStr(childNode.getAttribute("points"));
+                        break;
+                }
+                nodes.push(node)
+            }
+        }
+        return nodes;
+    }
+
+
+    /**
+     * 创建矩形
+     *
+     * @param x 矩形起始点 X
+     * @param y 矩形起始点 Y
+     * @param width 矩形宽度
+     * @param height 矩形高度
+     * @param style 样式
+     * @param extraProperties 额外属性
+     * @returns {SVGRectElement}
+     */
+    addRect({x, y, width, height}, style, extraProperties) {
+        const correctedRect = correctRect(x, y, width, height);
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", correctedRect.x);
+        rect.setAttribute("y", correctedRect.y);
+        rect.setAttribute("width", correctedRect.width);
+        rect.setAttribute("height", correctedRect.height);
+        rect.setAttribute("type", "rect");
+
+
+        const {color} = style || {};
+        const strokeColor = color ? color : "black"
+        rect.setAttribute("fill", "white");
+        rect.setAttribute("fill-opacity", 0)
+        rect.setAttribute("stroke-width", "2");
+        rect.setAttribute("stroke", strokeColor);
+        rect.setAttribute("id", getId());
+
+        if (extraProperties) {
+            for (let key in extraProperties) {
+                rect.setAttribute(`${this.extraAttributePrefix}${key}`, extraProperties[key])
+            }
+        }
+        this.mySvg.appendChild(rect);
+        return rect;
+    }
+
+    /**
+     * 创建多边形
+     *
+     * @param points 多边形点位
+     * @param style 多边形样式
+     * @param extraProperties 额外属性
+     * @returns {SVGPolygonElement}
+     */
+    addPolygon(points, style, extraProperties) {
+        const pointsStr = points.map(point => `${point.x},${point.y}`).join(" ");
+        const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        polygon.setAttribute("points", pointsStr);
+        polygon.setAttribute("type", "polygon");
+
+        const {color} = style || {};
+        const strokeColor = color ? color : "black"
+        polygon.setAttribute("fill", "white");
+        polygon.setAttribute("fill-opacity", 0)
+        polygon.setAttribute("stroke-width", "2");
+        polygon.setAttribute("stroke", strokeColor);
+        polygon.setAttribute("id", getId());
+
+        if (extraProperties) {
+            for (let key in extraProperties) {
+                polygon.setAttribute(`sg-${key}`, extraProperties[key])
+            }
+        }
+        this.mySvg.appendChild(polygon);
+        return polygon
+    }
+
     /**
      * 反撤销
      */
@@ -679,6 +798,10 @@ class SgVditor {
             x: parseFloat(splits[0]),
             y: parseFloat(splits[1])
         }
+    }
+
+    extractPointsFromPointsStr(pointsStr) {
+        return pointsStr.split(" ").map(pointStr => this.getPointFromStr(pointStr));
     }
 
     /**
