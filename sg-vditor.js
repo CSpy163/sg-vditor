@@ -1084,6 +1084,43 @@ class SgVditor {
 
                 if (this.type !== 'polygon') {
                     this.obj = e.target;
+                } else {
+                    if (this.handlers.length === 0) {
+                        const option = {
+                            type: 'polygon',
+                        }
+                        const drawObj = createObjectBy(option);
+                        this.mySvg.appendChild(drawObj);
+                        const handler = this.createHandler(drawObj, 0, {
+                            x: x,
+                            y: y,
+                        })
+                        this.handlers.push(handler);
+                        this.obj = handler;
+                    } else {
+                        const prev = this.handlers[this.handlers.length - 2];
+                        const curr = this.handlers[this.handlers.length - 1];
+                        if (prev.getAttribute("cx") === curr.getAttribute("cx") && prev.getAttribute("cy") === curr.getAttribute("cy")) {
+                            // 绘制多边形结束，弹出多余点
+                            const endHandler = this.handlers.pop();
+
+                            // 触发多边形绘制完成事件
+                            let polygonFinishedEvent = new CustomEvent("polygonFinished", {detail: endHandler.sgParent});
+                            this.mySvg.dispatchEvent(polygonFinishedEvent);
+
+
+                            endHandler.remove();
+                            this.updateType("select")
+                        } else {
+                            const handler = this.createHandler(this.obj.sgParent, 0, {
+                                x: x,
+                                y: y,
+                            })
+                            this.handlers.push(handler);
+                            this.obj = handler;
+                        }
+                    }
+                    this.updatePolygonByPoints(this.obj.sgParent, this.handlers)
                 }
             });
 
@@ -1199,42 +1236,7 @@ class SgVditor {
 
                 } else {
                     if (this.type === 'polygon') {
-                        if (this.handlers.length === 0) {
-                            const option = {
-                                type: 'polygon',
-                            }
-                            const drawObj = createObjectBy(option);
-                            this.mySvg.appendChild(drawObj);
-                            const handler = this.createHandler(drawObj, 0, {
-                                x: x,
-                                y: y,
-                            })
-                            this.handlers.push(handler);
-                            this.obj = handler;
-                        } else {
-                            const prev = this.handlers[this.handlers.length - 2];
-                            const curr = this.handlers[this.handlers.length - 1];
-                            if (prev.getAttribute("cx") === curr.getAttribute("cx") && prev.getAttribute("cy") === curr.getAttribute("cy")) {
-                                // 绘制多边形结束，弹出多余点
-                                const endHandler = this.handlers.pop();
 
-                                // 触发多边形绘制完成事件
-                                let polygonFinishedEvent = new CustomEvent("polygonFinished", {detail: endHandler.sgParent});
-                                this.mySvg.dispatchEvent(polygonFinishedEvent);
-
-
-                                endHandler.remove();
-                                this.updateType("select")
-                            } else {
-                                const handler = this.createHandler(this.obj.sgParent, 0, {
-                                    x: x,
-                                    y: y,
-                                })
-                                this.handlers.push(handler);
-                                this.obj = handler;
-                            }
-                        }
-                        this.updatePolygonByPoints(this.obj.sgParent, this.handlers)
                     } else {
                         if (this.obj === this.mySvg) {
                             this.clearHandlers();
