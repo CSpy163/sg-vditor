@@ -52,6 +52,11 @@ class SgVditor {
      */
     type = "line";
     /**
+     * 颜色
+     * @type {string}
+     */
+    strokeColor="black";
+    /**
      * 当前操作的对象，一般为鼠标按钮点下时的 e.target
      */
     obj = null;
@@ -199,6 +204,35 @@ class SgVditor {
         }
     }
 
+    // 向图形添加额外属性
+    addExtra(obj, name, value) {
+        let extra = {};
+        extra[name] = value;
+        this.addExtras(obj, extra)
+    }
+
+    // 向图形添加更多额外属性
+    addExtras(obj, extra) {
+        for (let key in extra) {
+            obj.setAttribute(`${this.extraAttributePrefix}${key}`, extra[key]);
+        }
+    }
+
+    // 列出该图形额外属性
+    listExtras(obj) {
+        const childType = obj.getAttribute("type");
+        if (childType && childType !== 'handler') {
+            const extra = {}
+            obj.getAttributeNames().forEach(atName => {
+                if (atName.startsWith(this.extraAttributePrefix)) {
+                    extra[atName.substring(this.extraAttributePrefix.length)] = obj.getAttribute(atName);
+                }
+            })
+            return extra;
+        }
+        return {};
+    }
+
 
     /**
      * 创建矩形
@@ -268,6 +302,25 @@ class SgVditor {
         this.mySvg.appendChild(polygon);
         return polygon
     }
+
+    // 通过 id 删除图形，包括把手
+    removeById(id) {
+        if (id) {
+            const myShape = this.mySvg.querySelector(`#${id}`);
+            if (myShape) {
+                for (let i = this.handlers.length - 1; i >= 0; i--) {
+                    if (this.handlers[i].sgParent === myShape) {
+                        this.handlers[i].remove();
+                        this.handlers.splice(i, 1);
+                    }
+                }
+            }
+            myShape.remove();
+        }
+    }
+
+
+
 
     /**
      * 反撤销
@@ -933,7 +986,7 @@ class SgVditor {
         handler.setAttribute("cy", y);
         handler.setAttribute("r", "3");
         handler.setAttribute("fill", "white");
-        handler.setAttribute("stroke", "black");
+        handler.setAttribute("stroke", this.strokeColor);
         handler.setAttribute("type", "handler")
 
         // 如果是隐形 handler
@@ -1164,6 +1217,12 @@ class SgVditor {
                             if (prev.getAttribute("cx") === curr.getAttribute("cx") && prev.getAttribute("cy") === curr.getAttribute("cy")) {
                                 // 绘制多边形结束，弹出多余点
                                 const endHandler = this.handlers.pop();
+
+                                // 触发多边形绘制完成事件
+                                let polygonFinishedEvent = new CustomEvent("polygonFinished", {detail: endHandler.sgParent});
+                                this.mySvg.dispatchEvent(polygonFinishedEvent);
+
+
                                 endHandler.remove();
                                 this.updateType("select")
                             } else {
@@ -1326,7 +1385,7 @@ function isMouseMain(mouseEvent) {
  * @returns {string}
  */
 function getId() {
-    return `UID${(new Date()).getTime()}`;
+    return `UID${(new Date()).getTime()}${parseInt(Math.random()*10000)}`;
 }
 
 
