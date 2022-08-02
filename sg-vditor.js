@@ -739,6 +739,7 @@ class SgVditor {
                 break;
         }
         this.tipSpan.innerText = `${typeName}`
+        this.clearHandlers();
 
     }
 
@@ -1083,6 +1084,7 @@ class SgVditor {
                 if (this.type !== 'polygon') {
                     this.obj = e.target;
                 } else {
+                    let finished = false;
                     if (this.handlers.length === 0) {
                         const option = {
                             type: 'polygon',
@@ -1107,9 +1109,8 @@ class SgVditor {
                             let polygonFinishedEvent = new CustomEvent("polygonFinished", {detail: endHandler.sgParent});
                             this.mySvg.dispatchEvent(polygonFinishedEvent);
 
-
                             endHandler.remove();
-                            this.updateType("select")
+                            finished = true;
                         } else {
                             const handler = this.createHandler(this.obj.sgParent, 0, {
                                 x: x,
@@ -1119,7 +1120,11 @@ class SgVditor {
                             this.obj = handler;
                         }
                     }
-                    this.updatePolygonByPoints(this.obj.sgParent, this.handlers)
+                    this.updatePolygonByPoints(this.obj.sgParent, this.handlers);
+                    if (finished) {
+                        this.updateType("select");
+                        this.resetHand();
+                    }
                 }
             });
 
@@ -1243,7 +1248,7 @@ class SgVditor {
                             this.clearHandlers();
                         }
                         // 点击事件
-                        if (this.obj !== this.mySvg && !this.obj.classList.contains("handler")) {
+                        if (this.obj && this.obj !== this.mySvg && !this.obj.classList.contains("handler")) {
                             // 既不是 svg 也不是 handler，只能是图形对象
                             this.clearHandlers();
                             this.addHandlersByObj(this.obj);
