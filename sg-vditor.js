@@ -55,7 +55,7 @@ class SgVditor {
      * 颜色
      * @type {string}
      */
-    strokeColor="black";
+    strokeColor = "black";
     /**
      * 当前操作的对象，一般为鼠标按钮点下时的 e.target
      */
@@ -318,8 +318,6 @@ class SgVditor {
             myShape.remove();
         }
     }
-
-
 
 
     /**
@@ -1089,6 +1087,7 @@ class SgVditor {
                         const option = {
                             type: 'polygon',
                         }
+                        option.strokeColor = this.strokeColor;
                         const drawObj = createObjectBy(option);
                         this.mySvg.appendChild(drawObj);
                         const handler = this.createHandler(drawObj, 0, {
@@ -1157,6 +1156,7 @@ class SgVditor {
                                         y2: y,
                                     }
                                     option.type = 'line';
+                                    option.strokeColor = this.strokeColor;
                                     break;
                                 case "rect":
                                     option = correctRect(this.startX, this.startY, x - parseFloat(this.startX), y - parseFloat(this.startY))
@@ -1171,6 +1171,7 @@ class SgVditor {
                                     break;
                             }
                             if (option) {
+                                option.strokeColor = this.strokeColor;
                                 const drawObj = createObjectBy(option);
                                 this.mySvg.appendChild(drawObj);
                                 this.mode = option.select ? "select" : "create";
@@ -1359,7 +1360,7 @@ function createObjectBy(option) {
     drawObj.setAttribute("fill", "white");
     drawObj.setAttribute("fill-opacity", 0)
     drawObj.setAttribute("stroke-width", "2");
-    drawObj.setAttribute("stroke", this.strokeColor);
+    drawObj.setAttribute("stroke", option.strokeColor);
     drawObj.setAttribute("id", getId());
 
     // 选择模式
@@ -1387,7 +1388,7 @@ function isMouseMain(mouseEvent) {
  * @returns {string}
  */
 function getId() {
-    return `UID${(new Date()).getTime()}${parseInt(Math.random()*10000)}`;
+    return `UID${(new Date()).getTime()}${parseInt(Math.random() * 10000)}`;
 }
 
 
