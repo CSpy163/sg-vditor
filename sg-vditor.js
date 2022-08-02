@@ -986,7 +986,7 @@ class SgVditor {
         handler.setAttribute("cy", y);
         handler.setAttribute("r", "3");
         handler.setAttribute("fill", "white");
-        handler.setAttribute("stroke", this.strokeColor);
+        handler.setAttribute("stroke", "black");
         handler.setAttribute("type", "handler")
 
         // 如果是隐形 handler
@@ -1359,7 +1359,7 @@ function createObjectBy(option) {
     drawObj.setAttribute("fill", "white");
     drawObj.setAttribute("fill-opacity", 0)
     drawObj.setAttribute("stroke-width", "2");
-    drawObj.setAttribute("stroke", "black");
+    drawObj.setAttribute("stroke", this.strokeColor);
     drawObj.setAttribute("id", getId());
 
     // 选择模式
