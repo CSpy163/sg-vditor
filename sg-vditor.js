@@ -383,7 +383,7 @@ class SgVditor {
      */
     addHandlersByObj(obj) {
         let defaultHandler = null;
-        let handlers = null;
+        let handlers = [];
         switch (obj.getAttribute("type")) {
             case "line":
                 handlers = this.createHandlers(obj, 2);
@@ -419,7 +419,11 @@ class SgVditor {
      */
     clearHandlers() {
         if (this.handlers) {
-            this.handlers.forEach(h => this.mySvg.removeChild(h));
+            this.handlers.forEach(h => {
+                if (this.mySvg.contains(h)) {
+                    this.mySvg.removeChild(h)
+                }
+            });
             this.handlers.splice(0);
         }
     }
